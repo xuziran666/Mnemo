@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createCommand, deleteCommand, listCommands } from "./api";
 import AddDialog from "./components/AddDialog";
 import CommandList from "./components/CommandList";
@@ -31,7 +32,7 @@ export default function App() {
   async function handleCopy(cmd: Command) {
     try {
       await navigator.clipboard.writeText(cmd.command);
-      showToast("Copied!");
+      await getCurrentWindow().close();
     } catch {
       showToast("Copy failed");
     }
