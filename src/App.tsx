@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createCommand, deleteCommand, listCommands } from "./api";
 import AddDialog from "./components/AddDialog";
 import CommandList from "./components/CommandList";
 import SearchBox from "./components/SearchBox";
+import { useClampSelectedIndex } from "./hooks/useClampSelectedIndex";
+import { useCommandHotkeys } from "./hooks/useCommandHotkeys";
+import { useLoadCommands } from "./hooks/useLoadCommands";
+import { useScrollSelectedIntoView } from "./hooks/useScrollSelectedIntoView";
 import type { Command, NewCommand } from "./types";
 import "./App.css";
 
@@ -23,67 +27,25 @@ export default function App() {
     setCommands(result);
   }, []);
 
-  useEffect(() => {
-    load(query);
-    setSelectedIndex(-1);
-  }, [query, load]);
+  useLoadCommands(query, load, setSelectedIndex);
+  useScrollSelectedIntoView(selectedIndex, commands, listRef);
+  useClampSelectedIndex(selectedIndex, commands.length, setSelectedIndex);
+  useCommandHotkeys({
+    enabled: !showAdd,
+    commands,
+    selectedIndex,
+    listActiveRef: listActive,
+    searchRef,
+    setSelectedIndex,
+    onCopy: handleCopy,
+    onOpenAdd: () => setShowAdd(true),
+  });
 
   function showToast(message: string) {
     setToast(message);
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 1200);
   }
-
-  useEffect(() => {
-    if (selectedIndex >= 0 && listRef.current) {
-      const el = listRef.current.children[selectedIndex] as HTMLElement | undefined;
-      el?.scrollIntoView({ block: "nearest" });
-    }
-  }, [selectedIndex, commands]);
-
-  useEffect(() => {
-    if (selectedIndex >= commands.length) {
-      setSelectedIndex(commands.length - 1);
-    }
-  }, [commands, selectedIndex]);
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (showAdd) return;
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        if (!listActive.current) return;
-        e.preventDefault();
-        setSelectedIndex((i) => {
-          if (commands.length === 0) return -1;
-          if (e.key === "ArrowDown") return Math.min(i + 1, commands.length - 1);
-          return Math.max(0, i - 1);
-        });
-        return;
-      }
-      if (e.key === "Enter") {
-        if (document.activeElement === searchRef.current) {
-          listActive.current = true;
-          searchRef.current?.blur();
-          setSelectedIndex(0);
-        } else if (listActive.current) {
-          const cmd = commands[selectedIndex];
-          if (cmd) handleCopy(cmd);
-        }
-        return;
-      }
-      if (e.key === "s" || e.key === "S") {
-        listActive.current = false;
-        searchRef.current?.focus();
-        return;
-      }
-      if (e.key.toLowerCase() === "n" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        setShowAdd(true);
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  });
 
   async function handleCopy(cmd: Command) {
     try {
