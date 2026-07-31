@@ -102,6 +102,11 @@ body {
   border-color: var(--accent);
 }
 
+.item.selected {
+  border-color: var(--accent);
+  background: #333;
+}
+
 .item-main {
   flex: 1;
   min-width: 0;

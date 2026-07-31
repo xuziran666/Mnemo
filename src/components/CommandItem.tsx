@@ -2,13 +2,14 @@ import type { Command } from "../types";
 
 interface Props {
   command: Command;
+  selected: boolean;
   onCopy: (cmd: Command) => void;
   onDelete: (cmd: Command) => void;
 }
 
-export default function CommandItem({ command, onCopy, onDelete }: Props) {
+export default function CommandItem({ command, selected, onCopy, onDelete }: Props) {
   return (
-    <li className="item">
+    <li className={selected ? "item selected" : "item"}>
       <div className="item-main" onClick={() => onCopy(command)}>
         <div className="item-title">{command.title}</div>
         <pre className="item-command">{command.command}</pre>
