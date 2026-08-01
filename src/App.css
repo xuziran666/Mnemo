@@ -146,6 +146,21 @@ body {
   color: var(--muted);
 }
 
+.edit {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.edit:hover {
+  color: #ffb86c;
+}
+
 .delete {
   align-self: flex-start;
   background: none;

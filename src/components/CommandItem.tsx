@@ -4,10 +4,11 @@ interface Props {
   command: Command;
   selected: boolean;
   onCopy: (cmd: Command) => void;
+  onEdit: (cmd: Command) => void;
   onDelete: (cmd: Command) => void;
 }
 
-export default function CommandItem({ command, selected, onCopy, onDelete }: Props) {
+export default function CommandItem({ command, selected, onCopy, onEdit, onDelete }: Props) {
   return (
     <li className={selected ? "item selected" : "item"}>
       <div className="item-main" onClick={() => onCopy(command)}>
@@ -28,6 +29,16 @@ export default function CommandItem({ command, selected, onCopy, onDelete }: Pro
           </div>
         )}
       </div>
+      <button
+        className="edit"
+        title="Edit"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit(command);
+        }}
+      >
+        ✎
+      </button>
       <button
         className="delete"
         title="Delete"

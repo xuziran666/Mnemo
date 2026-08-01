@@ -1,34 +1,38 @@
 import { useState } from "react";
-import type { NewCommand } from "../types";
+import type { Command, NewCommand } from "../types";
 
 interface Props {
+  command?: Command | null;
   onClose: () => void;
-  onSave: (input: NewCommand) => void;
+  onSave: (input: NewCommand, id?: number) => void;
 }
 
-export default function AddDialog({ onClose, onSave }: Props) {
-  const [title, setTitle] = useState("");
-  const [command, setCommand] = useState("");
-  const [note, setNote] = useState("");
-  const [tags, setTags] = useState("");
+export default function AddDialog({ command, onClose, onSave }: Props) {
+  const [title, setTitle] = useState(command?.title ?? "");
+  const [cmd, setCmd] = useState(command?.command ?? "");
+  const [note, setNote] = useState(command?.note ?? "");
+  const [tags, setTags] = useState(command?.tags ?? "");
 
-  const canSave = title.trim().length > 0 && command.trim().length > 0;
+  const canSave = title.trim().length > 0 && cmd.trim().length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSave) return;
-    onSave({
-      title: title.trim(),
-      command: command.trim(),
-      note: note.trim() || null,
-      tags: tags.trim() || null,
-    });
+    onSave(
+      {
+        title: title.trim(),
+        command: cmd.trim(),
+        note: note.trim() || null,
+        tags: tags.trim() || null,
+      },
+      command?.id,
+    );
   }
 
   return (
     <div className="overlay" onClick={onClose}>
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <h2>New Command</h2>
+        <h2>{command ? "Edit Command" : "New Command"}</h2>
         <input
           className="field"
           placeholder="Title"
@@ -40,8 +44,8 @@ export default function AddDialog({ onClose, onSave }: Props) {
           className="field"
           placeholder="Command"
           rows={3}
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
+          value={cmd}
+          onChange={(e) => setCmd(e.target.value)}
         />
         <input
           className="field"

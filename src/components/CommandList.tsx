@@ -7,6 +7,7 @@ interface Props {
   selectedIndex: number;
   listRef: Ref<HTMLUListElement>;
   onCopy: (cmd: Command) => void;
+  onEdit: (cmd: Command) => void;
   onDelete: (cmd: Command) => void;
 }
 
@@ -15,6 +16,7 @@ export default function CommandList({
   selectedIndex,
   listRef,
   onCopy,
+  onEdit,
   onDelete,
 }: Props) {
   if (commands.length === 0) {
@@ -29,6 +31,7 @@ export default function CommandList({
           command={c}
           selected={i === selectedIndex}
           onCopy={onCopy}
+          onEdit={onEdit}
           onDelete={onDelete}
         />
       ))}

@@ -9,6 +9,10 @@ export function createCommand(input: NewCommand): Promise<Command> {
   return invoke("create_command", { input });
 }
 
+export function updateCommand(id: number, input: NewCommand): Promise<Command> {
+  return invoke("update_command", { id, input });
+}
+
 export function deleteCommand(id: number): Promise<void> {
   return invoke("delete_command", { id });
 }

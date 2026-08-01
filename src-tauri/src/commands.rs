@@ -103,6 +103,36 @@ pub fn create_command(input: NewCommand, state: State<Db>) -> Result<Command, St
 }
 
 #[tauri::command]
+pub fn update_command(
+    id: i64,
+    input: NewCommand,
+    state: State<Db>,
+) -> Result<Command, String> {
+    let conn = state.lock().map_err(|e| e.to_string())?;
+
+    let updated = conn
+        .execute(
+            "UPDATE commands SET title = ?1, command = ?2, note = ?3, tags = ?4
+             WHERE id = ?5",
+            rusqlite::params![input.title, input.command, input.note, input.tags, id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    if updated == 0 {
+        return Err(format!("command {id} not found"));
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, command, note, tags, created_at
+             FROM commands WHERE id = ?1",
+        )
+        .map_err(|e| e.to_string())?;
+    stmt.query_row([id], row_to_command)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn delete_command(id: i64, state: State<Db>) -> Result<(), String> {
     let conn = state.lock().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM commands WHERE id = ?1", [id])

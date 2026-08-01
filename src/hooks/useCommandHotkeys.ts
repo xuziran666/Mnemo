@@ -10,6 +10,7 @@ interface HotkeyOptions {
   setSelectedIndex: Dispatch<SetStateAction<number>>;
   onCopy: (cmd: Command) => void;
   onOpenAdd: () => void;
+  onEdit: (cmd: Command) => void;
 }
 
 export function useCommandHotkeys({
@@ -21,6 +22,7 @@ export function useCommandHotkeys({
   setSelectedIndex,
   onCopy,
   onOpenAdd,
+  onEdit,
 }: HotkeyOptions) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -51,6 +53,12 @@ export function useCommandHotkeys({
         searchRef.current?.focus();
         return;
       }
+      if (e.key === "r" || e.key === "R") {
+        if (!listActiveRef.current) return;
+        const cmd = commands[selectedIndex];
+        if (cmd) onEdit(cmd);
+        return;
+      }
       if (e.key.toLowerCase() === "n" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         onOpenAdd();
@@ -67,5 +75,6 @@ export function useCommandHotkeys({
     setSelectedIndex,
     onCopy,
     onOpenAdd,
+    onEdit,
   ]);
 }

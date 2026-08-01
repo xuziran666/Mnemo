@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { createCommand, deleteCommand, listCommands } from "./api";
+import { createCommand, deleteCommand, listCommands, updateCommand } from "./api";
 import AddDialog from "./components/AddDialog";
 import CommandList from "./components/CommandList";
 import SearchBox from "./components/SearchBox";
@@ -15,6 +15,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [commands, setCommands] = useState<Command[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<Command | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const toastTimer = useRef<number | null>(null);
@@ -31,7 +32,7 @@ export default function App() {
   useScrollSelectedIntoView(selectedIndex, commands, listRef);
   useClampSelectedIndex(selectedIndex, commands.length, setSelectedIndex);
   useCommandHotkeys({
-    enabled: !showAdd,
+    enabled: !showAdd && !editing,
     commands,
     selectedIndex,
     listActiveRef: listActive,
@@ -39,6 +40,7 @@ export default function App() {
     setSelectedIndex,
     onCopy: handleCopy,
     onOpenAdd: () => setShowAdd(true),
+    onEdit: setEditing,
   });
 
   function showToast(message: string) {
@@ -62,9 +64,14 @@ export default function App() {
     await load(query);
   }
 
-  async function handleSave(input: NewCommand) {
-    await createCommand(input);
+  async function handleSave(input: NewCommand, id?: number) {
+    if (id != null) {
+      await updateCommand(id, input);
+    } else {
+      await createCommand(input);
+    }
     setShowAdd(false);
+    setEditing(null);
     await load(query);
   }
 
@@ -81,9 +88,19 @@ export default function App() {
         selectedIndex={selectedIndex}
         listRef={listRef}
         onCopy={handleCopy}
+        onEdit={setEditing}
         onDelete={handleDelete}
       />
-      {showAdd && <AddDialog onClose={() => setShowAdd(false)} onSave={handleSave} />}
+      {(showAdd || editing) && (
+        <AddDialog
+          command={editing}
+          onClose={() => {
+            setShowAdd(false);
+            setEditing(null);
+          }}
+          onSave={handleSave}
+        />
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
