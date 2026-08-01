@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: ubuntu-22.04-arm
+            args: ''
+          - platform: windows-2022
+            args: ''
+          - platform: windows-11-arm
+            args: ''
+          - platform: macos-14
+            args: '--target universal-apple-darwin'
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-14' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux dependencies
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Mnemo v__VERSION__'
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+          releaseAssetNamePattern: '[name]-[platform]-[arch]-[version][ext]'
+          args: ${{ matrix.args }}
