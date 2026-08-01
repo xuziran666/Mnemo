@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Command, NewCommand } from "../types";
 
 interface Props {
@@ -12,6 +12,14 @@ export default function AddDialog({ command, onClose, onSave }: Props) {
   const [cmd, setCmd] = useState(command?.command ?? "");
   const [note, setNote] = useState(command?.note ?? "");
   const [tags, setTags] = useState(command?.tags ?? "");
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   const canSave = title.trim().length > 0 && cmd.trim().length > 0;
 
@@ -38,6 +46,9 @@ export default function AddDialog({ command, onClose, onSave }: Props) {
           placeholder="Title"
           value={title}
           autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
           onChange={(e) => setTitle(e.target.value)}
         />
         <textarea
@@ -51,6 +62,9 @@ export default function AddDialog({ command, onClose, onSave }: Props) {
           className="field"
           placeholder="Note (optional)"
           value={note}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
           onChange={(e) => setNote(e.target.value)}
         />
         <input

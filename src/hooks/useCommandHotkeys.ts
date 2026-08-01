@@ -49,12 +49,15 @@ export function useCommandHotkeys({
         return;
       }
       if (e.key === "s" || e.key === "S") {
+        if (document.activeElement === searchRef.current) return;
+        e.preventDefault();
         listActiveRef.current = false;
         searchRef.current?.focus();
         return;
       }
       if (e.key === "r" || e.key === "R") {
         if (!listActiveRef.current) return;
+        e.preventDefault();
         const cmd = commands[selectedIndex];
         if (cmd) onEdit(cmd);
         return;
