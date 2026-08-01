@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Mnemo",
-  "version": "0.1.0",
-  "identifier": "com.longanl.mnrmo",
+  "version": "0.2.0",
+  "identifier": "com.longanl.mnemo",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
