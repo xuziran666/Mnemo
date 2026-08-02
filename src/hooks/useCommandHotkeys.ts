@@ -1,5 +1,5 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Command } from "../types";
+import { KIND_SNIPPET, type Command } from "../types";
 
 interface HotkeyOptions {
   enabled: boolean;
@@ -8,9 +8,11 @@ interface HotkeyOptions {
   listActiveRef: RefObject<boolean>;
   searchRef: RefObject<HTMLInputElement | null>;
   setSelectedIndex: Dispatch<SetStateAction<number>>;
-  onCopy: (cmd: Command) => void;
+  onOpen: (cmd: Command) => void;
   onOpenAdd: () => void;
   onEdit: (cmd: Command) => void;
+  onCopy: (cmd: Command) => void;
+  onClose: () => void;
 }
 
 export function useCommandHotkeys({
@@ -20,9 +22,11 @@ export function useCommandHotkeys({
   listActiveRef,
   searchRef,
   setSelectedIndex,
-  onCopy,
+  onOpen,
   onOpenAdd,
   onEdit,
+  onCopy,
+  onClose,
 }: HotkeyOptions) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -44,8 +48,13 @@ export function useCommandHotkeys({
           setSelectedIndex(0);
         } else if (listActiveRef.current) {
           const cmd = commands[selectedIndex];
-          if (cmd) onCopy(cmd);
+          if (cmd) onOpen(cmd);
         }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
         return;
       }
       if (e.key === "s" || e.key === "S") {
@@ -62,6 +71,13 @@ export function useCommandHotkeys({
         if (cmd) onEdit(cmd);
         return;
       }
+      if (e.key === "c" || e.key === "C") {
+        if (!listActiveRef.current) return;
+        e.preventDefault();
+        const cmd = commands[selectedIndex];
+        if (cmd && cmd.kind === KIND_SNIPPET) onCopy(cmd);
+        return;
+      }
       if (e.key.toLowerCase() === "n" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         onOpenAdd();
@@ -76,8 +92,10 @@ export function useCommandHotkeys({
     listActiveRef,
     searchRef,
     setSelectedIndex,
-    onCopy,
+    onOpen,
     onOpenAdd,
     onEdit,
+    onCopy,
+    onClose,
   ]);
 }

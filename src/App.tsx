@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createCommand, deleteCommand, listCommands, updateCommand } from "./api";
-import AddDialog from "./components/AddDialog";
 import CommandList from "./components/CommandList";
+import EntryEditor from "./components/EntryEditor";
 import SearchBox from "./components/SearchBox";
+import Viewer from "./components/Viewer";
 import { useClampSelectedIndex } from "./hooks/useClampSelectedIndex";
 import { useCommandHotkeys } from "./hooks/useCommandHotkeys";
 import { useLoadCommands } from "./hooks/useLoadCommands";
@@ -14,8 +15,8 @@ import "./App.css";
 export default function App() {
   const [query, setQuery] = useState("");
   const [commands, setCommands] = useState<Command[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const [editing, setEditing] = useState<Command | null>(null);
+  const [editing, setEditing] = useState<Command | "new" | null>(null);
+  const [viewing, setViewing] = useState<Command | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const toastTimer = useRef<number | null>(null);
@@ -32,15 +33,19 @@ export default function App() {
   useScrollSelectedIntoView(selectedIndex, commands, listRef);
   useClampSelectedIndex(selectedIndex, commands.length, setSelectedIndex);
   useCommandHotkeys({
-    enabled: !showAdd && !editing,
+    enabled: !editing && !viewing,
     commands,
     selectedIndex,
     listActiveRef: listActive,
     searchRef,
     setSelectedIndex,
-    onCopy: handleCopy,
-    onOpenAdd: () => setShowAdd(true),
+    onOpen: setViewing,
+    onOpenAdd: () => setEditing("new"),
     onEdit: setEditing,
+    onCopy: handleCopy,
+    onClose: () => {
+      void getCurrentWindow().close();
+    },
   });
 
   function showToast(message: string) {
@@ -49,9 +54,15 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(null), 1200);
   }
 
+  function exitViewer() {
+    setViewing(null);
+    listActive.current = false;
+    searchRef.current?.focus();
+  }
+
   async function handleCopy(cmd: Command) {
     try {
-      await navigator.clipboard.writeText(cmd.command);
+      await navigator.clipboard.writeText(cmd.content);
       await getCurrentWindow().close();
     } catch {
       showToast("Copy failed");
@@ -64,22 +75,52 @@ export default function App() {
     await load(query);
   }
 
-  async function handleSave(input: NewCommand, id?: number) {
+  async function handleSave(input: NewCommand, id?: number): Promise<Command | undefined> {
+    let saved: Command;
     if (id != null) {
-      await updateCommand(id, input);
+      saved = await updateCommand(id, input);
     } else {
-      await createCommand(input);
+      saved = await createCommand(input);
     }
-    setShowAdd(false);
-    setEditing(null);
     await load(query);
+    return saved;
+  }
+
+  if (editing !== null) {
+    return (
+      <EntryEditor
+        initial={editing === "new" ? null : editing}
+        onSave={async (input, id) => {
+          await handleSave(input, id);
+          setEditing(null);
+        }}
+        onCancel={() => setEditing(null)}
+      />
+    );
+  }
+
+  if (viewing) {
+    return (
+      <Viewer
+        command={viewing}
+        onCopy={handleCopy}
+        onExit={exitViewer}
+        onSave={async (input, id) => {
+          const saved = await handleSave(input, id);
+          if (saved) {
+            setViewing(saved);
+            showToast("Saved");
+          }
+        }}
+      />
+    );
   }
 
   return (
     <div className="app">
       <div className="toolbar">
         <SearchBox query={query} onChange={setQuery} inputRef={searchRef} />
-        <button className="add" title="Add command" onClick={() => setShowAdd(true)}>
+        <button className="add" title="Add command" onClick={() => setEditing("new")}>
           +
         </button>
       </div>
@@ -87,20 +128,10 @@ export default function App() {
         commands={commands}
         selectedIndex={selectedIndex}
         listRef={listRef}
-        onCopy={handleCopy}
+        onOpen={setViewing}
         onEdit={setEditing}
         onDelete={handleDelete}
       />
-      {(showAdd || editing) && (
-        <AddDialog
-          command={editing}
-          onClose={() => {
-            setShowAdd(false);
-            setEditing(null);
-          }}
-          onSave={handleSave}
-        />
-      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

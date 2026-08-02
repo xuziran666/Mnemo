@@ -1,20 +1,24 @@
-import type { Command } from "../types";
+import { KIND_NOTE, type Command } from "../types";
 
 interface Props {
   command: Command;
   selected: boolean;
-  onCopy: (cmd: Command) => void;
+  onOpen: (cmd: Command) => void;
   onEdit: (cmd: Command) => void;
   onDelete: (cmd: Command) => void;
 }
 
-export default function CommandItem({ command, selected, onCopy, onEdit, onDelete }: Props) {
+export default function CommandItem({ command, selected, onOpen, onEdit, onDelete }: Props) {
+  const isNote = command.kind === KIND_NOTE;
   return (
     <li className={selected ? "item selected" : "item"}>
-      <div className="item-main" onClick={() => onCopy(command)}>
-        <div className="item-title">{command.title}</div>
-        <pre className="item-command">{command.command}</pre>
-        {command.note && <div className="item-note">{command.note}</div>}
+      <div className="item-main" onClick={() => onOpen(command)}>
+        <div className="item-title">
+          <span className={isNote ? "badge note" : "badge"}>{isNote ? "知识" : "代码"}</span>
+          {command.title}
+        </div>
+        {!isNote && <pre className="item-command">{command.content}</pre>}
+        {!isNote && command.note && <div className="item-note">{command.note}</div>}
         {command.tags && (
           <div className="item-tags">
             {command.tags

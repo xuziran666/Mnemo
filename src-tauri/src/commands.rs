@@ -9,18 +9,20 @@ pub type Db = Mutex<Connection>;
 pub struct Command {
     pub id: i64,
     pub title: String,
-    pub command: String,
+    pub content: String,
     pub note: Option<String>,
     pub tags: Option<String>,
+    pub kind: i64,
     pub created_at: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct NewCommand {
     pub title: String,
-    pub command: String,
+    pub content: String,
     pub note: Option<String>,
     pub tags: Option<String>,
+    pub kind: i64,
 }
 
 fn escape_like(s: &str) -> String {
@@ -38,10 +40,10 @@ pub fn list_commands(query: Option<String>, state: State<Db>) -> Result<Vec<Comm
             let like = format!("%{}%", escape_like(q.trim()));
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, title, command, note, tags, created_at
+                    "SELECT id, title, content, note, tags, kind, created_at
                      FROM commands
                      WHERE title LIKE ?1 ESCAPE '\\'
-                        OR command LIKE ?1 ESCAPE '\\'
+                        OR content LIKE ?1 ESCAPE '\\'
                         OR note LIKE ?1 ESCAPE '\\'
                         OR tags LIKE ?1 ESCAPE '\\'
                      ORDER BY created_at DESC",
@@ -55,7 +57,7 @@ pub fn list_commands(query: Option<String>, state: State<Db>) -> Result<Vec<Comm
         _ => {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, title, command, note, tags, created_at
+                    "SELECT id, title, content, note, tags, kind, created_at
                      FROM commands
                      ORDER BY created_at DESC",
                 )
@@ -79,13 +81,14 @@ pub fn create_command(input: NewCommand, state: State<Db>) -> Result<Command, St
         .as_secs() as i64;
 
     conn.execute(
-        "INSERT INTO commands (title, command, note, tags, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO commands (title, content, note, tags, kind, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![
             input.title,
-            input.command,
+            input.content,
             input.note,
             input.tags,
+            input.kind,
             created_at
         ],
     )
@@ -94,7 +97,7 @@ pub fn create_command(input: NewCommand, state: State<Db>) -> Result<Command, St
     let id = conn.last_insert_rowid();
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, command, note, tags, created_at
+            "SELECT id, title, content, note, tags, kind, created_at
              FROM commands WHERE id = ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -112,9 +115,16 @@ pub fn update_command(
 
     let updated = conn
         .execute(
-            "UPDATE commands SET title = ?1, command = ?2, note = ?3, tags = ?4
-             WHERE id = ?5",
-            rusqlite::params![input.title, input.command, input.note, input.tags, id],
+            "UPDATE commands SET title = ?1, content = ?2, note = ?3, tags = ?4, kind = ?5
+             WHERE id = ?6",
+            rusqlite::params![
+                input.title,
+                input.content,
+                input.note,
+                input.tags,
+                input.kind,
+                id
+            ],
         )
         .map_err(|e| e.to_string())?;
 
@@ -124,7 +134,7 @@ pub fn update_command(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, command, note, tags, created_at
+            "SELECT id, title, content, note, tags, kind, created_at
              FROM commands WHERE id = ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -144,9 +154,10 @@ fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
     Ok(Command {
         id: row.get(0)?,
         title: row.get(1)?,
-        command: row.get(2)?,
+        content: row.get(2)?,
         note: row.get(3)?,
         tags: row.get(4)?,
-        created_at: row.get(5)?,
+        kind: row.get(5)?,
+        created_at: row.get(6)?,
     })
 }
