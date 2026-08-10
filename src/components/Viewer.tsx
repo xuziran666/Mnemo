@@ -1,16 +1,16 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { KIND_NOTE, type Command, type NewCommand } from "../types";
 import EntryEditor from "./EntryEditor";
-import NoteView from "./NoteView";
+
+const NoteView = lazy(() => import("./NoteView"));
 
 interface Props {
   command: Command;
-  onCopy: (cmd: Command) => void;
   onSave: (input: NewCommand, id: number) => Promise<void>;
   onExit: () => void;
 }
 
-export default function Viewer({ command, onCopy, onSave, onExit }: Props) {
+export default function Viewer({ command, onSave, onExit }: Props) {
   const [editing, setEditing] = useState(false);
   const isNote = command.kind === KIND_NOTE;
 
@@ -23,18 +23,15 @@ export default function Viewer({ command, onCopy, onSave, onExit }: Props) {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Enter") {
         e.preventDefault();
-        onCopy(command);
+        setEditing(true);
       } else if (e.key === "Escape") {
         e.preventDefault();
         onExit();
-      } else if (e.key.toLowerCase() === "e") {
-        e.preventDefault();
-        setEditing(true);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editing, command, onCopy, onExit]);
+  }, [editing, onExit]);
 
   if (editing) {
     return (
@@ -57,7 +54,9 @@ export default function Viewer({ command, onCopy, onSave, onExit }: Props) {
       </div>
       <div className="viewer-body">
         {isNote ? (
-          <NoteView content={command.content} />
+          <Suspense fallback={<div className="viewer-content">Loading…</div>}>
+            <NoteView content={command.content} />
+          </Suspense>
         ) : (
           <pre className="viewer-content">{command.content}</pre>
         )}
@@ -77,22 +76,19 @@ export default function Viewer({ command, onCopy, onSave, onExit }: Props) {
         )}
       </div>
       <div className="viewer-actions">
-        <button type="button" className="btn primary" onClick={() => onCopy(command)}>
-          复制
+        <button type="button" className="btn" onClick={onExit}>
+          取消
         </button>
-        <button type="button" className="btn" onClick={() => setEditing(true)}>
+        <button type="button" className="btn primary" onClick={() => setEditing(true)}>
           编辑
         </button>
       </div>
       <div className="viewer-hints">
         <span className="hint">
-          <kbd>Enter</kbd> 复制
+          <kbd>Enter</kbd> 编辑
         </span>
         <span className="hint">
-          <kbd>E</kbd> 编辑
-        </span>
-        <span className="hint">
-          <kbd>Esc</kbd> 返回
+          <kbd>Esc</kbd> 取消
         </span>
       </div>
     </div>

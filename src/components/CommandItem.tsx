@@ -4,15 +4,19 @@ interface Props {
   command: Command;
   selected: boolean;
   onOpen: (cmd: Command) => void;
+  onCopy: (cmd: Command) => void;
   onEdit: (cmd: Command) => void;
   onDelete: (cmd: Command) => void;
 }
 
-export default function CommandItem({ command, selected, onOpen, onEdit, onDelete }: Props) {
+export default function CommandItem({ command, selected, onOpen, onCopy, onEdit, onDelete }: Props) {
   const isNote = command.kind === KIND_NOTE;
   return (
     <li className={selected ? "item selected" : "item"}>
-      <div className="item-main" onClick={() => onOpen(command)}>
+      <div
+        className="item-main"
+        onClick={() => (isNote ? onOpen(command) : onCopy(command))}
+      >
         <div className="item-title">
           <span className={isNote ? "badge note" : "badge"}>{isNote ? "知识" : "代码"}</span>
           {command.title}
@@ -33,26 +37,48 @@ export default function CommandItem({ command, selected, onOpen, onEdit, onDelet
           </div>
         )}
       </div>
-      <button
-        className="edit"
-        title="Edit"
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdit(command);
-        }}
-      >
-        ✎
-      </button>
-      <button
-        className="delete"
-        title="Delete"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(command);
-        }}
-      >
-        ×
-      </button>
+      <div className="item-actions">
+        <button
+          className="act view"
+          title="查看"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen(command);
+          }}
+        >
+          查看
+        </button>
+        <button
+          className="act copy"
+          title="复制"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy(command);
+          }}
+        >
+          复制
+        </button>
+        <button
+          className="act edit"
+          title="修改"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(command);
+          }}
+        >
+          修改
+        </button>
+        <button
+          className="act delete"
+          title="删除"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(command);
+          }}
+        >
+          删除
+        </button>
+      </div>
     </li>
   );
 }

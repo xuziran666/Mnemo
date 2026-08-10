@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { createCommand, deleteCommand, listCommands, updateCommand } from "./api";
 import CommandList from "./components/CommandList";
 import EntryEditor from "./components/EntryEditor";
@@ -62,7 +63,7 @@ export default function App() {
 
   async function handleCopy(cmd: Command) {
     try {
-      await navigator.clipboard.writeText(cmd.content);
+      await writeText(cmd.content);
       await getCurrentWindow().close();
     } catch {
       showToast("Copy failed");
@@ -103,7 +104,6 @@ export default function App() {
     return (
       <Viewer
         command={viewing}
-        onCopy={handleCopy}
         onExit={exitViewer}
         onSave={async (input, id) => {
           const saved = await handleSave(input, id);
@@ -129,6 +129,7 @@ export default function App() {
         selectedIndex={selectedIndex}
         listRef={listRef}
         onOpen={setViewing}
+        onCopy={handleCopy}
         onEdit={setEditing}
         onDelete={handleDelete}
       />

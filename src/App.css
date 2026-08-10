@@ -146,33 +146,43 @@ body {
   color: var(--muted);
 }
 
-.edit {
+.item-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
   align-self: flex-start;
+  margin-left: 8px;
+}
+
+.act {
   background: none;
   border: none;
   color: var(--muted);
-  font-size: 16px;
+  font-size: 12px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
 }
 
-.edit:hover {
+.act:hover {
+  background: #333;
+  color: var(--text);
+}
+
+.act.view:hover {
+  color: var(--accent);
+}
+
+.act.copy:hover {
+  color: #7bf0b0;
+}
+
+.act.edit:hover {
   color: #ffb86c;
 }
 
-.delete {
-  align-self: flex-start;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.delete:hover {
+.act.delete:hover {
   color: #ff6b6b;
 }
 

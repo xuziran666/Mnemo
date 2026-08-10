@@ -48,7 +48,10 @@ export function useCommandHotkeys({
           setSelectedIndex(0);
         } else if (listActiveRef.current) {
           const cmd = commands[selectedIndex];
-          if (cmd) onOpen(cmd);
+          if (cmd) {
+            if (cmd.kind === KIND_SNIPPET) onCopy(cmd);
+            else onOpen(cmd);
+          }
         }
         return;
       }
