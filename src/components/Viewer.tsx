@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { KIND_NOTE, type Command, type NewCommand } from "../types";
 import EntryEditor from "./EntryEditor";
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function Viewer({ command, onSave, onExit }: Props) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const isNote = command.kind === KIND_NOTE;
 
@@ -49,12 +51,14 @@ export default function Viewer({ command, onSave, onExit }: Props) {
   return (
     <div className="viewer">
       <div className="viewer-header">
-        <span className={isNote ? "badge note" : "badge"}>{isNote ? "知识" : "代码"}</span>
+        <span className={isNote ? "badge note" : "badge"}>
+          {isNote ? t("badge.note") : t("badge.snippet")}
+        </span>
         <h1 className="viewer-title">{command.title}</h1>
       </div>
       <div className="viewer-body">
         {isNote ? (
-          <Suspense fallback={<div className="viewer-content">Loading…</div>}>
+          <Suspense fallback={<div className="viewer-content">{t("viewer.loading")}</div>}>
             <NoteView content={command.content} />
           </Suspense>
         ) : (
@@ -77,18 +81,18 @@ export default function Viewer({ command, onSave, onExit }: Props) {
       </div>
       <div className="viewer-actions">
         <button type="button" className="btn" onClick={onExit}>
-          取消
+          {t("viewer.cancel")}
         </button>
         <button type="button" className="btn primary" onClick={() => setEditing(true)}>
-          编辑
+          {t("viewer.edit")}
         </button>
       </div>
       <div className="viewer-hints">
         <span className="hint">
-          <kbd>Enter</kbd> 编辑
+          <kbd>Enter</kbd> {t("viewer.edit")}
         </span>
         <span className="hint">
-          <kbd>Esc</kbd> 取消
+          <kbd>Esc</kbd> {t("viewer.cancel")}
         </span>
       </div>
     </div>

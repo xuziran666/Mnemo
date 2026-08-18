@@ -1,0 +1,47 @@
+{
+  "search": {
+    "placeholder": "Search commands..."
+  },
+  "add": {
+    "title": "Add command"
+  },
+  "lang": {
+    "button": "中文",
+    "title": "Switch language"
+  },
+  "empty": {
+    "noCommands": "No commands found"
+  },
+  "badge": {
+    "snippet": "Code",
+    "note": "Note"
+  },
+  "actions": {
+    "view": "View",
+    "copy": "Copy",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "toast": {
+    "copyFailed": "Copy failed",
+    "saved": "Saved"
+  },
+  "confirm": {
+    "delete": "Delete \"{{title}}\"?"
+  },
+  "editor": {
+    "kindSnippet": "Snippet",
+    "kindNote": "Note",
+    "titlePlaceholder": "Title",
+    "contentPlaceholder": "Content",
+    "notePlaceholder": "Note (optional)",
+    "tagsPlaceholder": "Tags (comma separated, optional)",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "viewer": {
+    "loading": "Loading…",
+    "edit": "Edit",
+    "cancel": "Cancel"
+  }
+}

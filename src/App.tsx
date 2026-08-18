@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { createCommand, deleteCommand, listCommands, updateCommand } from "./api";
@@ -14,6 +15,7 @@ import type { Command, NewCommand } from "./types";
 import "./App.css";
 
 export default function App() {
+  const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
   const [commands, setCommands] = useState<Command[]>([]);
   const [editing, setEditing] = useState<Command | "new" | null>(null);
@@ -66,12 +68,12 @@ export default function App() {
       await writeText(cmd.content);
       await getCurrentWindow().close();
     } catch {
-      showToast("Copy failed");
+      showToast(t("toast.copyFailed"));
     }
   }
 
   async function handleDelete(cmd: Command) {
-    if (!window.confirm(`Delete "${cmd.title}"?`)) return;
+    if (!window.confirm(t("confirm.delete", { title: cmd.title }))) return;
     await deleteCommand(cmd.id);
     await load(query);
   }
@@ -109,7 +111,7 @@ export default function App() {
           const saved = await handleSave(input, id);
           if (saved) {
             setViewing(saved);
-            showToast("Saved");
+            showToast(t("toast.saved"));
           }
         }}
       />
@@ -120,7 +122,14 @@ export default function App() {
     <div className="app">
       <div className="toolbar">
         <SearchBox query={query} onChange={setQuery} inputRef={searchRef} />
-        <button className="add" title="Add command" onClick={() => setEditing("new")}>
+        <button
+          className="lang"
+          title={t("lang.title")}
+          onClick={() => void i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
+        >
+          {t("lang.button")}
+        </button>
+        <button className="add" title={t("add.title")} onClick={() => setEditing("new")}>
           +
         </button>
       </div>

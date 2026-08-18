@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { KIND_NOTE, type Command } from "../types";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function CommandItem({ command, selected, onOpen, onCopy, onEdit, onDelete }: Props) {
+  const { t } = useTranslation();
   const isNote = command.kind === KIND_NOTE;
   return (
     <li className={selected ? "item selected" : "item"}>
@@ -18,7 +20,9 @@ export default function CommandItem({ command, selected, onOpen, onCopy, onEdit,
         onClick={() => (isNote ? onOpen(command) : onCopy(command))}
       >
         <div className="item-title">
-          <span className={isNote ? "badge note" : "badge"}>{isNote ? "知识" : "代码"}</span>
+          <span className={isNote ? "badge note" : "badge"}>
+            {isNote ? t("badge.note") : t("badge.snippet")}
+          </span>
           {command.title}
         </div>
         {!isNote && <pre className="item-command">{command.content}</pre>}
@@ -40,43 +44,43 @@ export default function CommandItem({ command, selected, onOpen, onCopy, onEdit,
       <div className="item-actions">
         <button
           className="act view"
-          title="查看"
+          title={t("actions.view")}
           onClick={(e) => {
             e.stopPropagation();
             onOpen(command);
           }}
         >
-          查看
+          {t("actions.view")}
         </button>
         <button
           className="act copy"
-          title="复制"
+          title={t("actions.copy")}
           onClick={(e) => {
             e.stopPropagation();
             onCopy(command);
           }}
         >
-          复制
+          {t("actions.copy")}
         </button>
         <button
           className="act edit"
-          title="修改"
+          title={t("actions.edit")}
           onClick={(e) => {
             e.stopPropagation();
             onEdit(command);
           }}
         >
-          修改
+          {t("actions.edit")}
         </button>
         <button
           className="act delete"
-          title="删除"
+          title={t("actions.delete")}
           onClick={(e) => {
             e.stopPropagation();
             onDelete(command);
           }}
         >
-          删除
+          {t("actions.delete")}
         </button>
       </div>
     </li>

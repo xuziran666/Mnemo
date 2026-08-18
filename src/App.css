@@ -70,6 +70,21 @@ body {
   background: var(--accent);
 }
 
+.lang {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lang:hover {
+  background: var(--accent);
+}
+
 .list {
   flex: 1;
   margin: 0;

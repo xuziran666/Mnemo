@@ -1,4 +1,5 @@
 import type { Ref } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   query: string;
@@ -7,12 +8,13 @@ interface Props {
 }
 
 export default function SearchBox({ query, onChange, inputRef }: Props) {
+  const { t } = useTranslation();
   return (
     <input
       ref={inputRef}
       className="search"
       type="text"
-      placeholder="Search commands..."
+      placeholder={t("search.placeholder")}
       value={query}
       autoFocus
       onChange={(e) => onChange(e.target.value)}

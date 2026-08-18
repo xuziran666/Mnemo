@@ -1,4 +1,5 @@
 import type { Ref } from "react";
+import { useTranslation } from "react-i18next";
 import type { Command } from "../types";
 import CommandItem from "./CommandItem";
 
@@ -21,8 +22,9 @@ export default function CommandList({
   onEdit,
   onDelete,
 }: Props) {
+  const { t } = useTranslation();
   if (commands.length === 0) {
-    return <div className="empty">No commands found</div>;
+    return <div className="empty">{t("empty.noCommands")}</div>;
   }
 
   return (

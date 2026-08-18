@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { KIND_NOTE, KIND_SNIPPET, type Command, type NewCommand } from "../types";
 import AutoGrowTextarea from "./AutoGrowTextarea";
 import { captureWindowHeight, fitWindowHeight, restoreWindowHeight } from "../windowFit";
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function EntryEditor({ initial, onSave, onCancel }: Props) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [content, setContent] = useState(initial?.content ?? "");
   const [note, setNote] = useState(initial?.note ?? "");
@@ -104,20 +106,20 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
             className={kind === KIND_SNIPPET ? "seg-btn active" : "seg-btn"}
             onClick={() => setKind(KIND_SNIPPET)}
           >
-            Snippet
+            {t("editor.kindSnippet")}
           </button>
           <button
             type="button"
             className={kind === KIND_NOTE ? "seg-btn active" : "seg-btn"}
             onClick={() => setKind(KIND_NOTE)}
           >
-            Note
+            {t("editor.kindNote")}
           </button>
         </div>
         <AutoGrowTextarea
           ref={titleRef}
           className="field"
-          placeholder="Title"
+          placeholder={t("editor.titlePlaceholder")}
           rows={1}
           maxHeight={80}
           value={title}
@@ -128,7 +130,7 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
         />
         <AutoGrowTextarea
           className="field"
-          placeholder="Content"
+          placeholder={t("editor.contentPlaceholder")}
           rows={4}
           maxHeight={420}
           value={content}
@@ -136,7 +138,7 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
         />
         <AutoGrowTextarea
           className="field"
-          placeholder="Note (optional)"
+          placeholder={t("editor.notePlaceholder")}
           rows={1}
           maxHeight={120}
           value={note}
@@ -147,7 +149,7 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
         />
         <AutoGrowTextarea
           className="field"
-          placeholder="Tags (comma separated, optional)"
+          placeholder={t("editor.tagsPlaceholder")}
           rows={1}
           maxHeight={120}
           value={tags}
@@ -156,7 +158,7 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
       </div>
       <div className="editor-actions">
         <button type="button" className="btn" onClick={onCancel}>
-          取消
+          {t("editor.cancel")}
         </button>
         <button
           type="button"
@@ -164,15 +166,15 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
           disabled={!canSave()}
           onClick={() => void save()}
         >
-          保存
+          {t("editor.save")}
         </button>
       </div>
       <div className="viewer-hints">
         <span className="hint">
-          <kbd>Ctrl+S</kbd> 保存
+          <kbd>Ctrl+S</kbd> {t("editor.save")}
         </span>
         <span className="hint">
-          <kbd>Esc</kbd> 取消
+          <kbd>Esc</kbd> {t("editor.cancel")}
         </span>
       </div>
     </div>

@@ -1,0 +1,47 @@
+{
+  "search": {
+    "placeholder": "搜索命令..."
+  },
+  "add": {
+    "title": "添加命令"
+  },
+  "lang": {
+    "button": "EN",
+    "title": "切换语言"
+  },
+  "empty": {
+    "noCommands": "没有找到命令"
+  },
+  "badge": {
+    "snippet": "代码",
+    "note": "知识"
+  },
+  "actions": {
+    "view": "查看",
+    "copy": "复制",
+    "edit": "修改",
+    "delete": "删除"
+  },
+  "toast": {
+    "copyFailed": "复制失败",
+    "saved": "已保存"
+  },
+  "confirm": {
+    "delete": "确定删除「{{title}}」吗？"
+  },
+  "editor": {
+    "kindSnippet": "代码片段",
+    "kindNote": "笔记",
+    "titlePlaceholder": "标题",
+    "contentPlaceholder": "内容",
+    "notePlaceholder": "备注（可选）",
+    "tagsPlaceholder": "标签（逗号分隔，可选）",
+    "cancel": "取消",
+    "save": "保存"
+  },
+  "viewer": {
+    "loading": "加载中…",
+    "edit": "编辑",
+    "cancel": "取消"
+  }
+}
