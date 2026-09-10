@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Command, NewCommand } from "./types";
+import type { Command, ImportResult, NewCommand } from "./types";
 
 export function listCommands(query: string): Promise<Command[]> {
   return invoke("list_commands", { query });
@@ -15,4 +15,12 @@ export function updateCommand(id: number, input: NewCommand): Promise<Command> {
 
 export function deleteCommand(id: number): Promise<void> {
   return invoke("delete_command", { id });
+}
+
+export function exportCommands(): Promise<string> {
+  return invoke("export_commands");
+}
+
+export function importCommands(json: string): Promise<ImportResult> {
+  return invoke("import_commands", { json });
 }

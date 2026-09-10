@@ -18,3 +18,8 @@ export interface NewCommand {
   tags?: string | null;
   kind: number;
 }
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+}

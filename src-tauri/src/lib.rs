@@ -1,13 +1,15 @@
 mod commands;
 mod db;
 
-use commands::{create_command, delete_command, list_commands, update_command, Db};
+use commands::{create_command, delete_command, export_commands, import_commands, list_commands, update_command, Db};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let dir = app
                 .path()
@@ -23,7 +25,9 @@ pub fn run() {
             list_commands,
             create_command,
             update_command,
-            delete_command
+            delete_command,
+            export_commands,
+            import_commands
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -161,3 +161,101 @@ fn row_to_command(row: &rusqlite::Row) -> rusqlite::Result<Command> {
         created_at: row.get(6)?,
     })
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportData {
+    #[serde(default)]
+    pub version: i64,
+    pub commands: Vec<ExportCommand>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportCommand {
+    pub title: String,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<String>,
+    #[serde(default = "default_kind")]
+    pub kind: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<i64>,
+}
+
+fn default_kind() -> i64 {
+    1
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImportResult {
+    pub imported: usize,
+    pub skipped: usize,
+}
+
+#[tauri::command]
+pub fn export_commands(state: State<Db>) -> Result<String, String> {
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, content, note, tags, kind, created_at
+             FROM commands
+             ORDER BY created_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], row_to_command)
+        .map_err(|e| e.to_string())?;
+    let commands: Vec<ExportCommand> = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|c| ExportCommand {
+            title: c.title,
+            content: c.content,
+            note: c.note,
+            tags: c.tags,
+            kind: c.kind,
+            created_at: Some(c.created_at),
+        })
+        .collect();
+    let data = ExportData {
+        version: 1,
+        commands,
+    };
+    serde_json::to_string_pretty(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn import_commands(json: String, state: State<Db>) -> Result<ImportResult, String> {
+    let data: ExportData = serde_json::from_str(&json).map_err(|e| format!("invalid JSON: {e}"))?;
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs() as i64;
+    let mut imported = 0usize;
+    let mut skipped = 0usize;
+    for item in data.commands {
+        if item.title.trim().is_empty() || item.content.trim().is_empty() {
+            skipped += 1;
+            continue;
+        }
+        let created_at = item.created_at.unwrap_or(now);
+        conn.execute(
+            "INSERT INTO commands (title, content, note, tags, kind, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                item.title,
+                item.content,
+                item.note,
+                item.tags,
+                item.kind,
+                created_at,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        imported += 1;
+    }
+    Ok(ImportResult { imported, skipped })
+}

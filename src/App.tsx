@@ -2,7 +2,9 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { createCommand, deleteCommand, listCommands, updateCommand } from "./api";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { createCommand, deleteCommand, exportCommands, importCommands, listCommands, updateCommand } from "./api";
 import CommandList from "./components/CommandList";
 import EntryEditor from "./components/EntryEditor";
 import SearchBox from "./components/SearchBox";
@@ -89,6 +91,42 @@ export default function App() {
     return saved;
   }
 
+  async function handleExport() {
+    try {
+      const json = await exportCommands();
+      const path = await save({
+        defaultPath: "mnemo-export.json",
+        filters: [{ name: t("io.exportFilter"), extensions: ["json"] }],
+      });
+      if (!path) return;
+      await writeFile(path, new TextEncoder().encode(json));
+      showToast(t("toast.exported"));
+    } catch {
+      showToast(t("toast.exportFailed"));
+    }
+  }
+
+  async function handleImport() {
+    try {
+      const path = await open({
+        multiple: false,
+        filters: [{ name: t("io.importFilter"), extensions: ["json"] }],
+      });
+      if (!path) return;
+      const data = await readFile(path as string);
+      const json = new TextDecoder().decode(data);
+      const result = await importCommands(json);
+      await load(query);
+      if (result.skipped > 0) {
+        showToast(t("toast.importSkipped", { imported: result.imported, skipped: result.skipped }));
+      } else {
+        showToast(t("toast.imported", { count: result.imported }));
+      }
+    } catch {
+      showToast(t("toast.importFailed"));
+    }
+  }
+
   if (editing !== null) {
     return (
       <EntryEditor
@@ -128,6 +166,12 @@ export default function App() {
           onClick={() => void i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
         >
           {t("lang.button")}
+        </button>
+        <button className="add" title={t("io.import")} onClick={() => void handleImport()}>
+          ↑
+        </button>
+        <button className="add" title={t("io.export")} onClick={() => void handleExport()}>
+          ↓
         </button>
         <button className="add" title={t("add.title")} onClick={() => setEditing("new")}>
           +

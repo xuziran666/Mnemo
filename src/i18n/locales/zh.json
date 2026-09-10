@@ -24,7 +24,12 @@
   },
   "toast": {
     "copyFailed": "复制失败",
-    "saved": "已保存"
+    "saved": "已保存",
+    "exported": "已导出",
+    "imported": "已导入 {{count}} 条",
+    "importSkipped": "已导入 {{imported}} 条，跳过 {{skipped}} 条",
+    "importFailed": "导入失败",
+    "exportFailed": "导出失败"
   },
   "confirm": {
     "delete": "确定删除「{{title}}」吗？"
@@ -43,5 +48,13 @@
     "loading": "加载中…",
     "edit": "编辑",
     "cancel": "取消"
+  },
+  "io": {
+    "export": "导出",
+    "import": "导入",
+    "exportTitle": "导出命令",
+    "importTitle": "导入命令",
+    "exportFilter": "JSON 文件",
+    "importFilter": "JSON 文件"
   }
 }

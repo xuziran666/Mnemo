@@ -24,7 +24,12 @@
   },
   "toast": {
     "copyFailed": "Copy failed",
-    "saved": "Saved"
+    "saved": "Saved",
+    "exported": "Exported",
+    "imported": "Imported {{count}} items",
+    "importSkipped": "Imported {{imported}} items, skipped {{skipped}} items",
+    "importFailed": "Import failed",
+    "exportFailed": "Export failed"
   },
   "confirm": {
     "delete": "Delete \"{{title}}\"?"
@@ -43,5 +48,13 @@
     "loading": "Loading…",
     "edit": "Edit",
     "cancel": "Cancel"
+  },
+  "io": {
+    "export": "Export",
+    "import": "Import",
+    "exportTitle": "Export commands",
+    "importTitle": "Import commands",
+    "exportFilter": "JSON files",
+    "importFilter": "JSON files"
   }
 }
