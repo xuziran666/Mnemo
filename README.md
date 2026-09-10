@@ -37,13 +37,13 @@ Coming soon: `mnemo-cm` (build from source), `mnemo-cm-bin` (prebuilt binary).
 
 ### Build from source
 
-Requires [Node.js](https://nodejs.org) 18+ and [Rust](https://rustup.rs) (stable).
+Requires [Node.js](https://nodejs.org) 18+, [pnpm](https://pnpm.io) and [Rust](https://rustup.rs) (stable).
 
 **Linux** additionally needs the [Tauri system dependencies](https://tauri.app/start/prerequisites/) (`libwebkit2gtk-4.1-dev`, `librsvg2-dev`, etc.).
 
 ```bash
-npm install
-npm run tauri build
+pnpm install
+pnpm run tauri build
 ```
 
 ## Usage
@@ -71,9 +71,9 @@ npm run tauri build
 ## Development
 
 ```bash
-npm install          # install dependencies
-npm run tauri dev    # run with hot reload
-npm run tauri build  # produce release bundles
+pnpm install          # install dependencies
+pnpm run tauri dev    # run with hot reload
+pnpm run tauri build  # produce release bundles
 ```
 
 ## Data Storage

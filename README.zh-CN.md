@@ -37,13 +37,13 @@
 
 ### 源码构建
 
-需要 [Node.js](https://nodejs.org) 18+ 与 [Rust](https://rustup.rs)（stable）。
+需要 [Node.js](https://nodejs.org) 18+、[pnpm](https://pnpm.io) 与 [Rust](https://rustup.rs)（stable）。
 
 **Linux** 另需安装 [Tauri 系统依赖](https://tauri.app/start/prerequisites/)（如 `libwebkit2gtk-4.1-dev`、`librsvg2-dev` 等）。
 
 ```bash
-npm install
-npm run tauri build
+pnpm install
+pnpm run tauri build
 ```
 
 ## 快捷键
@@ -71,9 +71,9 @@ npm run tauri build
 ## 开发
 
 ```bash
-npm install          # 安装依赖
-npm run tauri dev    # 热重载开发
-npm run tauri build  # 构建发布包
+pnpm install          # 安装依赖
+pnpm run tauri dev    # 热重载开发
+pnpm run tauri build  # 构建发布包
 ```
 
 ## 数据存储
