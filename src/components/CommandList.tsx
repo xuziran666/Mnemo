@@ -13,6 +13,8 @@ interface Props {
   onDelete: (cmd: Command) => void;
 }
 
+// CommandList 是主列表容器，负责向用户展示当前筛选结果，并同步当前选中项。
+// 这个列表在键盘操作中承担“导航 + 执行”的核心职责：上下键移动、回车触发动作。
 export default function CommandList({
   commands,
   selectedIndex,

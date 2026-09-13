@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Command, ImportResult, NewCommand } from "./types";
 
+// 前端不会直接与 SQLite 通信。
+// 所有的持久化、导入/导出和查询都通过 Tauri 命令进行。
 export function listCommands(query: string): Promise<Command[]> {
   return invoke("list_commands", { query });
 }

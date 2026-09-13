@@ -1,6 +1,7 @@
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
+// 记录当前窗口高度，用于编辑框打开/关闭时恢复原始窗口尺寸。
 export async function captureWindowHeight(): Promise<number> {
   const win = getCurrentWindow();
   const size = await win.outerSize();
@@ -8,6 +9,7 @@ export async function captureWindowHeight(): Promise<number> {
   return size.toLogical(sf).height;
 }
 
+// 编辑内容时动态调整窗口尺寸，让文本输入区域更自然地扩展，而不需要额外滚动弹窗。
 export async function fitWindowHeight(targetHeight: number): Promise<void> {
   const win = getCurrentWindow();
   const size = await win.outerSize();
@@ -20,6 +22,7 @@ export async function fitWindowHeight(targetHeight: number): Promise<void> {
   }
 }
 
+// 退出编辑态时恢复原窗口高度，避免界面尺寸在用户编辑后持续留偏大状态。
 export async function restoreWindowHeight(originalHeight: number): Promise<void> {
   const win = getCurrentWindow();
   const size = await win.outerSize();

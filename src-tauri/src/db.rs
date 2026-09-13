@@ -1,12 +1,14 @@
 use rusqlite::Connection;
 use std::path::PathBuf;
 
+// SQLite 连接的入口，负责打开数据库并在启动时初始化表结构与兼容迁移逻辑。
 pub fn open(path: PathBuf) -> Result<Connection, rusqlite::Error> {
     let conn = Connection::open(path)?;
     init_schema(&conn)?;
     Ok(conn)
 }
 
+// 初次启动时创建 commands 表；后续执行 migrate 确保旧版本数据库字段兼容新 schema。
 fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS commands (
@@ -29,6 +31,7 @@ fn column_names(conn: &Connection) -> Result<Vec<String>, rusqlite::Error> {
         .collect::<Result<Vec<_>, _>>()
 }
 
+// 数据库迁移逻辑用于向后兼容旧版本表结构，比如把 command 字段转换为 content，并补齐 kind 字段。
 fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     let names = column_names(conn)?;
     if !names.iter().any(|name| name == "kind") {

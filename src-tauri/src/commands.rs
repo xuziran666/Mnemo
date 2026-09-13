@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
 
+// Db 是全局数据库连接的新类型包装，挂载在 Tauri app 的状态中，供所有 invoke handler 共享同一连接。
 pub type Db = Mutex<Connection>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,12 +26,14 @@ pub struct NewCommand {
     pub kind: i64,
 }
 
+// LIKE 搜索需要对 %、_ 和 \ 做转义，否则用户输入的关键字会被当成通配符，导致误匹配。
 fn escape_like(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_")
 }
 
+// list_commands 既能返回全部命令，也能按关键词过滤 title/content/note/tags。
 #[tauri::command]
 pub fn list_commands(query: Option<String>, state: State<Db>) -> Result<Vec<Command>, String> {
     let conn = state.lock().map_err(|e| e.to_string())?;
@@ -72,6 +75,7 @@ pub fn list_commands(query: Option<String>, state: State<Db>) -> Result<Vec<Comm
     Ok(rows)
 }
 
+// create_command 用于新增命令，并返回新插入记录的完整对象，给前端立即刷新列表。
 #[tauri::command]
 pub fn create_command(input: NewCommand, state: State<Db>) -> Result<Command, String> {
     let conn = state.lock().map_err(|e| e.to_string())?;
@@ -105,6 +109,7 @@ pub fn create_command(input: NewCommand, state: State<Db>) -> Result<Command, St
         .map_err(|e| e.to_string())
 }
 
+// update_command 只修改指定 id 的记录，若目标不存在则返回明确错误，避免静默失败。
 #[tauri::command]
 pub fn update_command(
     id: i64,
@@ -142,6 +147,7 @@ pub fn update_command(
         .map_err(|e| e.to_string())
 }
 
+// delete_command 执行从本地数据库中删除一条记录，删除后前端会重新拉取列表。
 #[tauri::command]
 pub fn delete_command(id: i64, state: State<Db>) -> Result<(), String> {
     let conn = state.lock().map_err(|e| e.to_string())?;
@@ -193,6 +199,7 @@ pub struct ImportResult {
     pub skipped: usize,
 }
 
+// export_commands 将所有本地记录序列化为 JSON，供用户导出备份或迁移到另一台设备。
 #[tauri::command]
 pub fn export_commands(state: State<Db>) -> Result<String, String> {
     let conn = state.lock().map_err(|e| e.to_string())?;
@@ -226,6 +233,7 @@ pub fn export_commands(state: State<Db>) -> Result<String, String> {
     serde_json::to_string_pretty(&data).map_err(|e| e.to_string())
 }
 
+// import_commands 接收导出的 JSON，并跳过空内容或缺失关键字段的数据，保证备份文件的可恢复性。
 #[tauri::command]
 pub fn import_commands(json: String, state: State<Db>) -> Result<ImportResult, String> {
     let data: ExportData = serde_json::from_str(&json).map_err(|e| format!("invalid JSON: {e}"))?;
