@@ -10,6 +10,16 @@ interface Props {
   onDelete: (cmd: Command) => void;
 }
 
+// CommandItem 是列表中的单条记录，既承担展示职责，也承担“点击即操作”的交互入口。
+// Snippet 在主区域点击时直接复制；Note 在主区域点击时直接打开阅读视图；右侧操作区给出更明确的按钮操作。
+// HOTKEY 集中定义右侧四个动作的快捷键，用于悬浮提示，避免与实际绑定失配。
+const HOTKEY = {
+  view: "V",
+  copy: "C",
+  edit: "R",
+  delete: "D",
+};
+
 export default function CommandItem({ command, selected, onOpen, onCopy, onEdit, onDelete }: Props) {
   const { t } = useTranslation();
   const isNote = command.kind === KIND_NOTE;
@@ -44,7 +54,7 @@ export default function CommandItem({ command, selected, onOpen, onCopy, onEdit,
       <div className="item-actions">
         <button
           className="act view"
-          title={t("actions.view")}
+          title={`${t("actions.view")} (${HOTKEY.view})`}
           onClick={(e) => {
             e.stopPropagation();
             onOpen(command);
@@ -54,7 +64,7 @@ export default function CommandItem({ command, selected, onOpen, onCopy, onEdit,
         </button>
         <button
           className="act copy"
-          title={t("actions.copy")}
+          title={`${t("actions.copy")} (${HOTKEY.copy})`}
           onClick={(e) => {
             e.stopPropagation();
             onCopy(command);
@@ -64,7 +74,7 @@ export default function CommandItem({ command, selected, onOpen, onCopy, onEdit,
         </button>
         <button
           className="act edit"
-          title={t("actions.edit")}
+          title={`${t("actions.edit")} (${HOTKEY.edit})`}
           onClick={(e) => {
             e.stopPropagation();
             onEdit(command);
@@ -74,7 +84,7 @@ export default function CommandItem({ command, selected, onOpen, onCopy, onEdit,
         </button>
         <button
           className="act delete"
-          title={t("actions.delete")}
+          title={`${t("actions.delete")} (${HOTKEY.delete}) - ${t("confirm.delete", { title: command.title })}`}
           onClick={(e) => {
             e.stopPropagation();
             onDelete(command);

@@ -54,6 +54,8 @@ pnpm run tauri build
 | `↑` / `↓` | Navigate list |
 | `Enter` | Copy selected snippet & close window, or open viewer for a note |
 | `c` | Copy selected snippet & close window (snippets only) |
+| `v` | View selected command |
+| `d` | Delete selected command (with confirmation) |
 | `Esc` | Close window (from list) |
 | `r` | Edit selected command |
 | `Ctrl+N` / `Cmd+N` | Add a new command |

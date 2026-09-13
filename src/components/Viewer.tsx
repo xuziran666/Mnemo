@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { KIND_NOTE, type Command, type NewCommand } from "../types";
 import EntryEditor from "./EntryEditor";
 
+// A note is rendered lazily because Markdown parsing and syntax highlighting are heavier than plain text.
 const NoteView = lazy(() => import("./NoteView"));
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
   onExit: () => void;
 }
 
+// 查看器处理笔记和片段的只读展示层。
+// 它提供了一个轻量级的“快速浏览”体验，并带有就地编辑模式。
 export default function Viewer({ command, onSave, onExit }: Props) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -80,10 +83,15 @@ export default function Viewer({ command, onSave, onExit }: Props) {
         )}
       </div>
       <div className="viewer-actions">
-        <button type="button" className="btn" onClick={onExit}>
+        <button type="button" className="btn" title={`${t("viewer.cancel")} (Esc)`} onClick={onExit}>
           {t("viewer.cancel")}
         </button>
-        <button type="button" className="btn primary" onClick={() => setEditing(true)}>
+        <button
+          type="button"
+          className="btn primary"
+          title={`${t("viewer.edit")} (Enter)`}
+          onClick={() => setEditing(true)}
+        >
           {t("viewer.edit")}
         </button>
       </div>

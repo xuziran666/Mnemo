@@ -1,6 +1,7 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { KIND_SNIPPET, type Command } from "../types";
 
+// 全局键盘绑定，使以搜索为先的工作流程保持轻量和快速。
 interface HotkeyOptions {
   enabled: boolean;
   commands: Command[];
@@ -12,6 +13,7 @@ interface HotkeyOptions {
   onOpenAdd: () => void;
   onEdit: (cmd: Command) => void;
   onCopy: (cmd: Command) => void;
+  onDelete: (cmd: Command) => void;
   onClose: () => void;
 }
 
@@ -26,6 +28,7 @@ export function useCommandHotkeys({
   onOpenAdd,
   onEdit,
   onCopy,
+  onDelete,
   onClose,
 }: HotkeyOptions) {
   useEffect(() => {
@@ -42,6 +45,8 @@ export function useCommandHotkeys({
         return;
       }
       if (e.key === "Enter") {
+        // 在搜索框中按回车键会激活列表选择；当选择一个结果时，
+        // 片段会立即被复制，并在查看器中打开一个笔记。
         if (document.activeElement === searchRef.current) {
           listActiveRef.current = true;
           searchRef.current?.blur();
@@ -81,11 +86,26 @@ export function useCommandHotkeys({
         if (cmd && cmd.kind === KIND_SNIPPET) onCopy(cmd);
         return;
       }
+      if (e.key === "v" || e.key === "V") {
+        if (!listActiveRef.current) return;
+        e.preventDefault();
+        const cmd = commands[selectedIndex];
+        if (cmd) onOpen(cmd);
+        return;
+      }
+      if (e.key === "d" || e.key === "D") {
+        if (!listActiveRef.current) return;
+        e.preventDefault();
+        const cmd = commands[selectedIndex];
+        if (cmd) onDelete(cmd);
+        return;
+      }
       if (e.key.toLowerCase() === "n" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         onOpenAdd();
       }
     }
+    // 监听全局键盘事件，支持列表导航、打开、编辑、复制和关闭。
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
@@ -99,6 +119,7 @@ export function useCommandHotkeys({
     onOpenAdd,
     onEdit,
     onCopy,
+    onDelete,
     onClose,
   ]);
 }

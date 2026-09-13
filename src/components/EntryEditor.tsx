@@ -10,6 +10,8 @@ interface Props {
   onCancel: () => void;
 }
 
+// EntryEditor 是创建和编辑条目的表单面板。
+// 它在界面上同时支持 Snippet 和 Note 两种类型，并且会根据内容长度自动调整窗口高度，保持更像原生应用的编辑体验。
 export default function EntryEditor({ initial, onSave, onCancel }: Props) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -51,6 +53,21 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
     };
   }, []);
 
+    useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void save();
+      }
+    }
+    // 监听全局键盘事件，支持 Esc 取消和 Ctrl/Cmd+S 保存。
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [title, content, note, tags, kind, initial, onSave, onCancel]);
+
   function scheduleFit() {
     if (fitTimer.current) window.clearTimeout(fitTimer.current);
     fitTimer.current = window.setTimeout(() => {
@@ -82,20 +99,6 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
       initial?.id,
     );
   }
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onCancel();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        void save();
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [title, content, note, tags, kind, initial, onSave, onCancel]);
 
   return (
     <div className="viewer" ref={rootRef}>
@@ -157,12 +160,13 @@ export default function EntryEditor({ initial, onSave, onCancel }: Props) {
         />
       </div>
       <div className="editor-actions">
-        <button type="button" className="btn" onClick={onCancel}>
+        <button type="button" className="btn" title={`${t("editor.cancel")} (Esc)`} onClick={onCancel}>
           {t("editor.cancel")}
         </button>
         <button
           type="button"
           className="btn primary"
+          title={`${t("editor.save")} (Ctrl+S)`}
           disabled={!canSave()}
           onClick={() => void save()}
         >

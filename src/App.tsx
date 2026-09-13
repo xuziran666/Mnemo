@@ -2,10 +2,11 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { createCommand, deleteCommand, exportCommands, importCommands, listCommands, updateCommand } from "./api";
 import CommandList from "./components/CommandList";
+import { ExportIcon, ImportIcon, PlusIcon } from "./components/icons";
 import EntryEditor from "./components/EntryEditor";
 import SearchBox from "./components/SearchBox";
 import Viewer from "./components/Viewer";
@@ -16,19 +17,22 @@ import { useScrollSelectedIntoView } from "./hooks/useScrollSelectedIntoView";
 import type { Command, NewCommand } from "./types";
 import "./App.css";
 
+// 根 App 组件是搜索、选择、编辑和数据输入输出的控制中心。
+// 它决定了 UI 显示的是列表、新建/编辑表单，还是笔记查看器。
 export default function App() {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
   const [commands, setCommands] = useState<Command[]>([]);
   const [editing, setEditing] = useState<Command | "new" | null>(null);
   const [viewing, setViewing] = useState<Command | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);// 消息提示
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const toastTimer = useRef<number | null>(null);
   const listActive = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
+  // load() 是从 UI 到 Tauri 后端的桥梁，并在每次变更后刷新列表。
   const load = useCallback(async (q: string) => {
     const result = await listCommands(q);
     setCommands(result);
@@ -48,23 +52,27 @@ export default function App() {
     onOpenAdd: () => setEditing("new"),
     onEdit: setEditing,
     onCopy: handleCopy,
+    onDelete: handleDelete,
     onClose: () => {
       void getCurrentWindow().close();
     },
   });
 
+  // 针对复制/导入/导出操作的小型短暂反馈，匹配以键盘为主的用户体验。
   function showToast(message: string) {
     setToast(message);
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 1200);
   }
 
+  // 从查看器返回时，应将焦点恢复到搜索框，同时保持列表状态不变。
   function exitViewer() {
     setViewing(null);
     listActive.current = false;
     searchRef.current?.focus();
   }
 
+  // 复制一段代码片段时，应将原始内容推送到系统剪贴板并立即关闭应用程序。
   async function handleCopy(cmd: Command) {
     try {
       await writeText(cmd.content);
@@ -75,7 +83,7 @@ export default function App() {
   }
 
   async function handleDelete(cmd: Command) {
-    if (!window.confirm(t("confirm.delete", { title: cmd.title }))) return;
+    if (!(await confirm(t("confirm.delete", { title: cmd.title })))) return;
     await deleteCommand(cmd.id);
     await load(query);
   }
@@ -91,6 +99,7 @@ export default function App() {
     return saved;
   }
 
+  // 导出将完整的本地数据库状态序列化到用户选择的 JSON 文件中。
   async function handleExport() {
     try {
       const json = await exportCommands();
@@ -106,6 +115,7 @@ export default function App() {
     }
   }
 
+  // 导入从磁盘读取 JSON 导出，然后用合并结果刷新列表。
   async function handleImport() {
     try {
       const path = await open({
@@ -168,13 +178,17 @@ export default function App() {
           {t("lang.button")}
         </button>
         <button className="add" title={t("io.import")} onClick={() => void handleImport()}>
-          ↑
+          <ImportIcon />
         </button>
         <button className="add" title={t("io.export")} onClick={() => void handleExport()}>
-          ↓
+          <ExportIcon />
         </button>
-        <button className="add" title={t("add.title")} onClick={() => setEditing("new")}>
-          +
+        <button
+          className="add"
+          title={`${t("add.title")} (Ctrl+N)`}
+          onClick={() => setEditing("new")}
+        >
+          <PlusIcon />
         </button>
       </div>
       <CommandList
