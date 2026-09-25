@@ -9,7 +9,8 @@ pub fn open(path: PathBuf) -> Result<Connection, rusqlite::Error> {
 }
 
 // 初次启动时创建 commands 表；后续执行 migrate 确保旧版本数据库字段兼容新 schema。
-fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
+// pub(crate)：service.rs 的单元测试用内存库复用同一套建表/迁移逻辑，避免测试里复制 schema。
+pub(crate) fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS commands (
             id INTEGER PRIMARY KEY,

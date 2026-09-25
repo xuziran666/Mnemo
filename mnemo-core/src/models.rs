@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 
 // 条目类型：Snippet（代码片段，复制到剪贴板）与 Note（笔记，纯文本查看）。
 pub const KIND_SNIPPET: i64 = 1;
-// KIND_NOTE 由后续 UI 层判定条目类型时使用，核心库阶段暂无调用点。
-#[allow(dead_code)]
+// 写入侧（create / update / import）用它做 kind 归一化，读取侧（UI）用它判断条目类型。
 pub const KIND_NOTE: i64 = 2;
 
 // Command 表示本地 SQLite 数据库中的持久化记录。
