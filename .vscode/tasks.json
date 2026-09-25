@@ -8,12 +8,12 @@
 			"args": [
 				"run",
 				"-p",
-				"mnemo-egui"
+				"mnemo-slint"
 			],
 			"problemMatcher": [
 				"$rustc"
 			],
-			"detail": "编译并运行纯 Rust / egui 版 Mnemo"
+			"detail": "编译并运行 Mnemo（Slint 版，二进制名 mnemo）"
 		},
 		{
 			"label": "构建发布",
@@ -23,12 +23,26 @@
 				"build",
 				"--release",
 				"-p",
-				"mnemo-egui"
+				"mnemo-slint"
 			],
 			"problemMatcher": [
 				"$rustc"
 			],
-			"detail": "生成 release 可执行文件"
+			"detail": "生成 release 可执行文件 target/release/mnemo(.exe)"
+		},
+		{
+			"label": "编译检查（快）",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"check",
+				"-p",
+				"mnemo-slint"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"detail": "只做类型检查，不产出二进制"
 		}
 	]
 }

@@ -1,5 +1,9 @@
 # Phase 3：mnemo_core 独立化 + egui 完整 UI
 
+> 历史记录：本文描述的是已下线的 egui 版前端（`mnemo-egui`）。该 crate 已从仓库移除，
+> 文中的代码路径可能不再存在；需要对照时用 `git show legacy-egui:mnemo-egui/<path>` 取回。
+> 当前实现是 `mnemo-slint/`（Slint UI），`mnemo-core/` 保持本文所述的分层不变。
+
 ## 背景与目标
 
 Phase 2 已建立可运行的 egui 骨架，但未接入数据层。Phase 3 的目标是：

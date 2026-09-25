@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 // 支持的语言：新增语言时在此扩展，并添加 locales/<code>.json（语言按钮文案来自 lang.button）。
+// 说明：这套 i18n 做法与已下线的旧版 egui 前端相同（需要对照时见 git tag `legacy-egui`），
+// 但两个 crate 各自拥有资源，互不依赖。
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
     En,

@@ -3,7 +3,8 @@ use std::path::PathBuf;
 // 与旧版（Tauri / egui）保持同一应用标识，复用同一份 commands.db。
 //
 // 说明：路径逻辑放在 UI 侧而不是 mnemo-core —— mnemo-core 的 open_db() 只接收完整路径，
-// 由调用方决定数据存放位置（本文件是 mnemo-egui/src/paths.rs 的等价实现，不修改旧版代码）。
+// 由调用方决定数据存放位置。这段解析规则与已下线的旧版 egui 前端完全一致（见 git tag `legacy-egui`），
+// 因此两版共用同一份 commands.db。
 pub const APP_IDENTIFIER: &str = "com.longanl.mnemo";
 
 // 应用数据目录，与 Tauri 的 app_data_dir() 一致：

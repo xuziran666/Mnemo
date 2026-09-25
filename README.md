@@ -17,29 +17,32 @@
 - **Organized** — Each command can carry a title, note, and tags for easy management.
 - **Light & dark theme** — Toggle between light and dark mode; your choice is remembered.
 - **Viewer mode** — Press `Enter` to view a note as plain text (read-only); press `Enter` in the viewer to switch to editing in place, `Ctrl+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed).
-- **Pure Rust** — Native desktop UI; no web runtime, no Node.js. Two frontends share one core: [Slint](https://slint.dev) (active) and [egui](https://github.com/emilk/egui) (legacy).
+- **Pure Rust** — Native desktop UI built with [Slint](https://slint.dev); no web runtime, no Node.js. All persistence and business logic live in a framework-agnostic `mnemo-core`.
 
 ## Screenshot
 
 ![Mnemo](docs/screenshots/main.png)
 
-## Implementations
+## Architecture
 
-The workspace ships two frontends that share the same `mnemo-core` (SQLite persistence + business
-logic) and the same data/settings files, so you can switch between them at any time:
+| Crate | Role |
+|---|---|
+| `mnemo-core` | SQLite persistence and business logic (framework-agnostic, unit-tested) |
+| `mnemo-slint` | Desktop application: [Slint](https://slint.dev) UI, frameless window with a self-drawn title bar, system tray, light/dark theme |
 
-| Crate | UI | Status | Run |
-|---|---|---|---|
-| `mnemo-slint` | [Slint](https://slint.dev) — frameless window with a self-drawn title bar, system tray, light/dark theme | **active** | `cargo run -p mnemo-slint` |
-| `mnemo-egui` | [egui](https://github.com/emilk/egui) / eframe | legacy, still buildable | `cargo run -p mnemo-egui` |
+> An earlier [egui](https://github.com/emilk/egui)/eframe frontend (`mnemo-egui`) has been removed.
+> Its last state is preserved in the git tag `legacy-egui`
+> (`git show legacy-egui:mnemo-egui/<path>`), and the notes for that phase live in `docs/refactor/`.
 
-### Differences you may notice
+### Notes on behavior
 
-| Behavior | `mnemo-slint` | `mnemo-egui` |
-|---|---|---|
-| Window | Frameless, custom title bar, hides when it loses focus, comes back from the tray | Native window frame |
-| `Enter` on a **note** | Copies its text (`v` / the **View** button opens the read-only viewer) | Opens the viewer |
-| Theme | Dark by default, toggled in the toolbar and remembered | Follows the system theme on first run |
+- The window is frameless with a custom title bar: drag it to move, double-click the title bar to
+  maximize/restore, and use the buttons on its right edge for minimize / maximize / close.
+- Closing or losing focus **hides** the window (the process keeps running); bring it back from the tray
+  (left-click the icon, or the tray menu).
+- `Enter` copies the selected command; use `v` (or the **View** button) to read a note without copying.
+- The theme is dark by default, toggled in the toolbar and remembered. Preferences live in
+  `settings.json` next to the database.
 
 ## Install
 
@@ -56,42 +59,38 @@ Download from [GitHub Releases](https://github.com/xuziran666/Mnemo/releases):
 Requires [Rust](https://rustup.rs) (stable).
 
 ```bash
-cargo build --release -p mnemo-slint   # Slint frontend (active)
-cargo build --release -p mnemo-egui    # egui frontend (legacy)
+cargo build --release -p mnemo-slint
 ```
 
-The Slint binary is produced at `target/release/mnemo-slint` (`mnemo-slint.exe` on Windows);
-the legacy egui binary at `target/release/mnemo`.
+The binary is produced at `target/release/mnemo` (`mnemo.exe` on Windows).
 
 ## Usage
 
 | Key | Action |
 |---|---|
-| `s` | Focus search box |
-| `↑` / `↓` | Navigate list |
-| `Enter` | Copy selected snippet & close window, or open viewer for a note |
-| `c` | Copy selected snippet & close window (snippets only) |
-| `v` | View selected command |
-| `d` | Delete selected command (with confirmation) |
-| `Esc` | Close window (from list) |
-| `r` | Edit selected command |
+| `s` | Focus the search box |
+| `↑` / `↓` | Move the selection (the list scrolls to follow) |
+| `Enter` | Copy the selected command & hide the window |
+| `c` | Same as `Enter` |
+| `v` | Open the read-only viewer for the selected command |
+| `r` | Edit the selected command |
+| `d` | Delete the selected command (confirmation required) |
 | `Ctrl+N` / `Cmd+N` | Add a new command |
+| `Esc` | Close the open viewer/dialog, otherwise hide the window |
 | `+` | Add a new command (mouse) |
 
-### In viewer
+### In a dialog
 
 | Key | Action |
 |---|---|
-| `Enter` | Start editing (same window) |
-| `Esc` | Back to search list |
-| `Ctrl+S` / `Cmd+S` | Save edits & return to viewer |
-| `Esc` (editing) | Discard changes & return to viewer |
+| `Enter` (in the search box) | Move focus to the list, so the keys above apply |
+| `Ctrl+S` / `Cmd+S` (editor) | Save |
+| `Esc` | Close the current viewer / dialog without saving |
 
 ## Development
 
 ```bash
-cargo run -p mnemo-slint        # run the Slint frontend
-cargo run -p mnemo-egui         # run the legacy egui frontend
+cargo run -p mnemo-slint        # run the app
 cargo check -p mnemo-slint      # compile check only (fast)
 cargo test --workspace
 ```
@@ -100,8 +99,7 @@ cargo test --workspace
 
 ```
 mnemo-core/   # SQLite persistence and business logic (framework-agnostic)
-mnemo-slint/  # Slint desktop application (active)
-mnemo-egui/   # egui/eframe desktop application (legacy)
+mnemo-slint/  # Slint desktop application (UI + window/tray integration)
 ```
 
 ## Data Storage
@@ -122,13 +120,12 @@ Preferences are stored next to it in `settings.json` (shared by both frontends):
 |---|---|
 | `lang` | UI language (`en` / `zh`) |
 | `theme` | `dark` / `light` |
-| `window` | Last window size + maximized state (`mnemo-slint` only) |
+| `window` | Last window size + maximized state |
 
 ## Tech Stack
 
 - [Rust](https://www.rust-lang.org)
-- [Slint](https://slint.dev) — declarative native GUI (`mnemo-slint`: custom title bar, tray, theming)
-- [egui / eframe](https://github.com/emilk/egui) — native immediate-mode GUI (`mnemo-egui`, legacy)
+- [Slint](https://slint.dev) — declarative native GUI (custom title bar, tray, theming)
 - [SQLite](https://www.sqlite.org) (bundled via [rusqlite](https://github.com/rusqlite/rusqlite))
 - [rfd](https://github.com/PolyMeilex/rfd) — native file dialogs
 - [arboard](https://github.com/1Password/arboard) — system clipboard

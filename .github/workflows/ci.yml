@@ -26,7 +26,8 @@ jobs:
           sudo apt-get install -y \
             libxkbcommon-dev libwayland-dev libx11-dev \
             libxcursor-dev libxrandr-dev libxi-dev \
-            libgl1-mesa-dev libegl1-mesa-dev
+            libgl1-mesa-dev libegl1-mesa-dev \
+            libfontconfig1-dev
 
       - name: Format check
         run: cargo fmt --all -- --check
