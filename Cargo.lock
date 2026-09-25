@@ -3028,6 +3028,10 @@ dependencies = [
 name = "mnemo-slint"
 version = "0.1.0"
 dependencies = [
+ "arboard",
+ "dirs",
+ "mnemo-core",
+ "serde_json",
  "slint",
  "slint-build",
 ]

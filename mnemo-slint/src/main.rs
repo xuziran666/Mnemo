@@ -1,6 +1,6 @@
 // Mnemo（Slint 版）入口。
-// P0 范围：窗口行为（无边框 / 置顶 / 失焦隐藏 / 最小化 / Esc 隐藏）+ 系统托盘 + 回调接线。
-// 业务逻辑（查询、增删改、导入导出、i18n）在 P1 接入 mnemo-core，当前回调只输出日志。
+// 窗口行为（无边框 / 置顶 / 失焦隐藏 / 最小化 / Esc 隐藏）+ 系统托盘 + 数据层装配。
+// 查询（list / LIKE 过滤）已接入 mnemo-core；增删改、复制、导入导出、i18n 见后续步骤。
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -9,6 +9,10 @@ use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
 use slint::{ComponentHandle, SharedString};
 
 slint::include_modules!();
+
+// UI 侧模块：数据层（SQLite 绑定与列表刷新）/ 路径解析（复用 com.longanl.mnemo 目录）
+mod data;
+mod paths;
 
 // Slint 没有 monospace 通用族关键字，代码字体必须给具体族名，按平台选择。
 #[cfg(target_os = "windows")]
@@ -55,6 +59,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let ui = MainWindow::new()?;
     apply_code_font(&ui);
     install_callbacks(&ui);
+
+    // 数据层：打开 commands.db（含建表/迁移）并做首次查询，把真实数据绑定给 State.commands
+    let app_data = data::AppData::open();
+    data::refresh_list(&ui, &app_data, "");
+    install_data_bindings(&ui, &app_data);
+
     install_window_controls(&ui, flags.clone());
     install_window_event_hook(&ui, flags.clone());
 
@@ -94,7 +104,19 @@ fn apply_code_font(ui: &MainWindow) {
         .set_code_font_family(SharedString::from(CODE_FONT_FAMILY));
 }
 
-// P0：回调只打印日志，用于验证 UI → Rust 的接线；P1 替换为 mnemo-core 调用。
+// 搜索框输入 → 重新查询并刷新列表模型。
+// 每次输入都触发查询（本地 SQLite + LIKE 足够快，暂不做防抖）；关键词转义交给 mnemo-core。
+fn install_data_bindings(ui: &MainWindow, app_data: &Rc<data::AppData>) {
+    let app_data = app_data.clone();
+    let ui_weak = ui.as_weak();
+    ui.on_query_changed(move |query| {
+        if let Some(ui) = ui_weak.upgrade() {
+            data::refresh_list(&ui, &app_data, query.as_str());
+        }
+    });
+}
+
+// 尚未接入业务的回调：只打印日志，用于验证 UI → Rust 的接线（替换见后续步骤）。
 fn install_callbacks(ui: &MainWindow) {
     ui.on_card_activated(|id| eprintln!("[mnemo] card-activated id={id}"));
     ui.on_copy_requested(|id| eprintln!("[mnemo] copy-requested id={id}"));

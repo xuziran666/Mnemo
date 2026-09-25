@@ -17,6 +17,14 @@ path = "src/main.rs"
 # GUI 框架：声明式 UI。
 # unstable-winit-030 用于通过 winit 事件钩子实现"失去焦点自动隐藏"，并锁定 winit 0.30 版本的适配层。
 slint = { version = "~1.18", features = ["unstable-winit-030"] }
+# 跨平台应用数据目录：复用与旧版（Tauri / egui）一致的 commands.db 路径
+dirs = "7"
+# 系统剪贴板（复制命令内容）
+arboard = "3"
+# JSON 解析：locales/*.json 的语言资源（与 mnemo-egui 同版本）
+serde_json = "1"
+# 纯 Rust 核心库（SQLite 持久化与业务逻辑）
+mnemo-core = { path = "../mnemo-core" }
 
 [build-dependencies]
 # 构建期编译 .slint 文件（版本与 slint 保持一致）

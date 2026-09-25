@@ -28,6 +28,9 @@ export component MainWindow inherits Window {
     callback new-clicked();
     callback lang-selected(string);
 
+    // 搜索关键词变化（每次输入触发）→ Rust 侧查询 mnemo-core 并刷新列表
+    callback query-changed(string);
+
     // 无边框窗口的系统级操作（Rust 侧实现）：
     // 最小化到任务栏 / 隐藏到托盘（关闭 ≠ 退出进程，退出走托盘菜单）
     callback minimize-requested();
@@ -73,8 +76,9 @@ export component MainWindow inherits Window {
             langs: State.langs;
 
             query-edited(q) => {
-                // P0：关键词只写入 State；P1 在此处做防抖并查询 mnemo-core
+                // 写入 State（保持输入框内容）+ 转给 Rust 侧查询；本地 SQLite + LIKE 足够快，暂不做防抖
                 State.query = q;
+                root.query-changed(q);
             }
             lang-selected(code) => {
                 State.lang-code = code;

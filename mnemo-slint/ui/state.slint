@@ -1,6 +1,6 @@
 // 数据契约与文案。
-// P0 阶段 State.commands 内为 mock 数据（用于跑通视觉与交互骨架），P1 由 Rust 侧从
-// mnemo-core 查询后写入；Strings 内的文案 P1 由 locales/*.json 注入。
+// State.commands 由 Rust 侧（src/data.rs）从 mnemo-core 查询后写入，UI 内没有 mock 数据；
+// Strings 内的文案由 locales/*.json 注入（见后续步骤）。
 // 颜色/尺寸请统一走 Theme，不要在这里写死。
 
 // 列表条目。kind 与 mnemo-core::models::{KIND_SNIPPET, KIND_NOTE} 对齐。
@@ -39,65 +39,15 @@ export global Strings {
 
 // 界面状态（Rust 侧可通过 ui.global::<State>() 读写）。
 export global State {
-    // 列表数据（P1：由 Rust 侧注入 mnemo-core 的查询结果）
-    in-out property <[CommandItem]> commands: [
-        {
-            id: 1,
-            title: "Set the position for Linux decompressed files",
-            content: "cp -a  file_path  target/path",
-            note: "",
-            tags: ["linux"],
-            kind: 1,
-        },
-        {
-            id: 2,
-            title: "Restart Docker daemon (always restart)",
-            content: "docker update --restart=no <container_id/container_name>",
-            note: "",
-            tags: ["docker"],
-            kind: 1,
-        },
-        {
-            id: 3,
-            title: "Deploy Nginx container",
-            content: "docker run -d \\\n  --name nginx \\\n  --network bridge \\\n  -p 80:80 \\\n  -v ~/nginx/conf:/etc/nginx/conf.d \\\n  -v ~/nginx/html:/usr/share/nginx/html \\\n  -v ~/nginx/logs:/var/log/nginx \\\n  --restart always \\\n  nginx:1.26",
-            note: "",
-            tags: ["docker", "nginx"],
-            kind: 1,
-        },
-        {
-            id: 4,
-            title: "Start Docker service and automatically restart the container",
-            content: "docker update --restart=always <container_id/container_name>",
-            note: "",
-            tags: ["docker"],
-            kind: 1,
-        },
-        {
-            id: 5,
-            title: "Calculate the number of occurrences of a character in a string",
-            content: "int stoi( const std::string& str, size_t* pos = nullptr, int base = 10 );",
-            note: "",
-            tags: ["string"],
-            kind: 1,
-        },
-        {
-            // mock：用于验证 Note 分支（紫色徽章 / 次要色正文 / 3 行截断）
-            id: 6,
-            title: "Git 撤销 commit 的几种方式",
-            content: "git reset --soft HEAD~1：只撤销 commit，改动保留在暂存区；\ngit reset --mixed HEAD~1：撤销 commit 与暂存，改动保留在工作区；\ngit reset --hard HEAD~1：连同工作区改动一起丢弃，慎用。",
-            note: "优先使用 --soft，避免误丢改动。",
-            tags: ["git", "note"],
-            kind: 2,
-        },
-    ];
+    // 列表数据：由 Rust 侧（src/data.rs）从 mnemo-core 查询后写入
+    in-out property <[CommandItem]> commands: [];
 
-    // 搜索关键词（P1：Rust 侧防抖后查询 mnemo-core）
+    // 搜索关键词：SearchBox 双向绑定，Rust 侧据此调用 mnemo_core::list 过滤（LIKE 转义在 core 内部）
     in-out property <string> query: "";
 
-    // 选中条目的 id（用 id 而不是下标：列表刷新后仍然稳定）
-    // P0 默认选中 id=2，与设计图（image.png）中第二张卡片为选中态一致。
-    in-out property <int> selected-id: 2;
+    // 选中条目的 id（用 id 而不是下标：列表过滤/刷新后仍然稳定）
+    // 0 表示无选中（数据库自增 id 从 1 开始，不会与真实条目冲突）
+    in-out property <int> selected-id: 0;
 
     // 语言：code 用于下拉选中态判断，label 用于按钮显示
     in-out property <[LangOption]> langs: [
