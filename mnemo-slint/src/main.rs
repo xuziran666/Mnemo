@@ -206,6 +206,35 @@ fn install_business_callbacks(
         });
     }
 
+    // 查看：点卡片「查看」按钮或按 V —— 用列表缓存填充 State.viewing 后打开查看弹层
+    {
+        let app_data = app_data.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_view_requested(move |id| {
+            if let Some(ui) = ui_weak.upgrade() {
+                if let Some(command) = app_data.find(id) {
+                    open_viewer(&ui, &command);
+                }
+            }
+        });
+    }
+
+    // 查看弹层里的「编辑」：先关掉查看再打开编辑器，避免两个遮罩叠在一起
+    {
+        let app_data = app_data.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_viewer_edit(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                let state = ui.global::<State>();
+                let id = state.get_viewing().id;
+                state.set_viewing_open(false);
+                if let Some(command) = app_data.find(id) {
+                    open_editor(&ui, Some(&command));
+                }
+            }
+        });
+    }
+
     // 新建：清空编辑器。已在编辑时忽略，避免 Ctrl+N 连按把用户已输入的内容清掉。
     {
         let ui_weak = ui.as_weak();
@@ -506,6 +535,14 @@ fn open_editor(ui: &MainWindow, command: Option<&mnemo_core::models::Command>) {
     state.set_editor_open(true);
 }
 
+// 打开查看弹层：把该条从列表缓存填进 State.viewing（只读展示）。
+// 复用 data::to_item，保证与列表卡片是同一套字段映射（note 空串、tags 数组解析规则一致）。
+fn open_viewer(ui: &MainWindow, command: &mnemo_core::models::Command) {
+    let state = ui.global::<State>();
+    state.set_viewing(data::to_item(command));
+    state.set_viewing_open(true);
+}
+
 // Esc 的"弹层优先"处理：返回 true 表示已被弹层消费（此时不隐藏窗口）。
 // 弹层状态都在 State 全局里，Rust 侧能直接判定，因此 Esc 仍然只需要一个入口。
 fn close_top_overlay(ui: &MainWindow) -> bool {
@@ -515,6 +552,9 @@ fn close_top_overlay(ui: &MainWindow) -> bool {
         true
     } else if state.get_confirm_open() {
         state.set_confirm_open(false);
+        true
+    } else if state.get_viewing_open() {
+        state.set_viewing_open(false);
         true
     } else {
         false

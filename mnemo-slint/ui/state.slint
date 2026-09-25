@@ -52,6 +52,10 @@ export global Strings {
 
     // 删除确认框
     in-out property <string> confirm-title: "Delete";
+
+    // 查看弹层（复用 locales 里的 viewer.* 文案）
+    in-out property <string> viewer-edit: "Edit";
+    in-out property <string> viewer-close: "Cancel";
 }
 
 // 界面状态（Rust 侧可通过 ui.global::<State>() 读写）。
@@ -78,6 +82,12 @@ export global State {
     // 由 Rust 侧维护（顶栏按钮点击 + winit Resized 事件同步外部变化）：
     // 顶栏据此切换"最大化 / 还原"图标，并在最大化时禁用顶栏拖动。
     in-out property <bool> maximized: false;
+
+    // ---------- 查看（Viewer 弹层）----------
+    // Rust 侧在点"查看"（或按 V）时用列表缓存填充 viewing，再置 viewing-open。
+    // 面板只读这些字段，写操作（编辑）走 editor-*。
+    in-out property <bool> viewing-open: false;
+    in-out property <CommandItem> viewing;
 
     // ---------- 编辑器（窗口内浮层）----------
     // 新建时为 0；编辑时为该条目的 id。字段值由 Rust 侧写入，保存时由 Rust 读取。

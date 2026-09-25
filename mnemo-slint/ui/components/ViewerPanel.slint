@@ -1,0 +1,106 @@
+import { Theme } from "../theme.slint";
+import { State, Strings } from "../state.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Badge } from "Badge.slint";
+import { Tag } from "Tag.slint";
+import { SolidButton } from "SolidButton.slint";
+
+// 查看弹层（与 EditorPanel / ConfirmDialog 同一套"窗口内浮层"约定：遮罩 + 居中面板）。
+//
+// 尺寸全部显式给出：非布局子元素不读取 min/max-*，只写 min/max 会退化成父元素的 100%
+// （顶栏那次踩过，见 docs/problems/slint-layout-sizing-and-path-scaling.md）。
+// 面板高度固定 + 内部 ScrollView：长代码/长笔记在面板内滚动，弹层不会随内容长短跳动。
+export component ViewerPanel inherits Rectangle {
+    callback edit-requested();
+    callback cancel();
+
+    width: 460px;   // 窗口 min-width 是 500px，放得下
+    height: 452px;  // 窗口 min-height 是 500px，居中后上下各留 24px
+    background: Theme.panel-bg;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: Theme.radius-card;
+
+    content := VerticalLayout {
+        x: Theme.pad-window;
+        y: Theme.pad-window;
+        width: parent.width - Theme.pad-window * 2;
+        height: parent.height - Theme.pad-window * 2;
+        spacing: Theme.gap-action;
+
+        // 头部：徽章 + 标题
+        HorizontalLayout {
+            spacing: Theme.gap-card;
+
+            Badge {
+                text: State.viewing.kind == 2 ? Strings.badge-note : Strings.badge-code;
+                bg: State.viewing.kind == 2 ? Theme.badge-note-bg : Theme.badge-code-bg;
+            }
+            Text {
+                text: State.viewing.title;
+                color: Theme.text;
+                font-size: Theme.fs-title;
+                font-weight: 700;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+        }
+
+        // 内容区：占满剩余高度，长文本在内部滚动
+        content-scroll := ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                // 必须显式跟随可视宽度，否则 ScrollView 的 content-width 会退化成内容最小宽度
+                width: content-scroll.visible-width;
+                padding: Theme.pad-card;
+                spacing: Theme.gap-card;
+
+                // Snippet：等宽 + 代码色；Note：正文色（与卡片同一套呈现规则）
+                if (State.viewing.kind != 2) : Text {
+                    text: State.viewing.content;
+                    color: Theme.code;
+                    font-family: Theme.code-font-family;
+                    font-size: Theme.fs-body;
+                    wrap: word-wrap;
+                }
+                if (State.viewing.kind == 2) : Text {
+                    text: State.viewing.content;
+                    color: Theme.text;
+                    font-size: Theme.fs-body;
+                    wrap: word-wrap;
+                }
+                if (State.viewing.note != "") : Text {
+                    text: State.viewing.note;
+                    color: Theme.text-muted;
+                    font-size: Theme.fs-chip;
+                    wrap: word-wrap;
+                }
+                if (State.viewing.tags.length > 0) : HorizontalLayout {
+                    spacing: Theme.gap-chip;
+
+                    for tag in State.viewing.tags : Tag {
+                        text: tag;
+                    }
+                }
+            }
+        }
+
+        // 操作：关闭 / 编辑（编辑会由 Rust 关掉查看弹层并打开编辑器，不叠两层遮罩）
+        HorizontalLayout {
+            alignment: end;
+            spacing: Theme.gap-control;
+
+            SolidButton {
+                text: Strings.viewer-close;
+                clicked => { root.cancel(); }
+            }
+            SolidButton {
+                text: Strings.viewer-edit;
+                accent: true;
+                clicked => { root.edit-requested(); }
+            }
+        }
+    }
+}

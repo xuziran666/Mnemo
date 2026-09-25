@@ -15,6 +15,8 @@ export component CommandCard inherits Rectangle {
 
     // 供上层 / Rust 侧绑定业务逻辑
     callback card-clicked();
+    // 「查看」按钮：打开只读的查看弹层（与"点卡片正文=仅选中"区分开）
+    callback view-clicked();
     callback copy-clicked();
     callback edit-clicked();
     callback delete-clicked();
@@ -86,7 +88,7 @@ export component CommandCard inherits Rectangle {
                 TextButton {
                     text: Strings.action-view;
                     hover-color: Theme.hover-view;
-                    clicked => { root.card-clicked(); }
+                    clicked => { root.view-clicked(); }
                 }
                 TextButton {
                     text: Strings.action-copy;

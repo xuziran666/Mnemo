@@ -130,11 +130,60 @@ Toast 整块没有 `TouchArea`，所以它铺满窗口也不挡操作。
   - `forward-focus` 理论上会在窗口重新获得焦点时把焦点转回 `content-scope`，若实机发现"打开编辑器后
     输入框不自动聚焦"，改用弹层内的显式 `focus()` 调用。
 
+## 后续补齐：查看弹层与键盘动作（批次 A）
+
+补齐了旧版 egui 有、Slint 版还缺的四项：查看（Viewer）、R/C/V/D 单键动作、搜索框 Enter、编辑器 Ctrl+S。
+
+### 查看弹层（第三个窗口内浮层）
+
+- `ViewerPanel.slint` 沿用同一套"遮罩 + 居中面板"约定；面板尺寸**全部显式**
+  （`width: 460px; height: 452px`，都在窗口 `min-*` 之内），内容区用 `ScrollView` +
+  `vertical-stretch: 1` 占剩余高度，长代码/长笔记在面板内滚动。
+- 数据用**结构体状态** `State.viewing: CommandItem`（Rust 在打开时填充），
+  而不是在 `.slint` 里按 id 查表：`for` 循环没有下标、按下标取模型元素也不可靠，
+  交给 Rust 用列表缓存一次性填好最省事；字段映射直接复用 `data::to_item`，
+  保证与卡片是同一套 note/tags 解析规则（`to_item` 因此从私有改为 `pub`）。
+- z 序：**查看 < 编辑 < 确认 < 提示**；点查看里的"编辑"时 Rust 先关查看再开编辑器，
+  不叠两层遮罩（Esc 的 `close_top_overlay` 也按 编辑器 → 确认 → 查看 的顺序消费）。
+
+### 搜索框 Enter：用「焦点转移」而不是「失焦 API」
+
+计划里本来要加 `SearchBox.blur-input()`（`input.clear-focus()`），实现时发现**不必要**：
+Slint 的焦点是**独占**的，`content-scope.focus()` 一步就把焦点从 TextInput 拿走，
+搜索框自然失焦。少一个 API 依赖、少两处改动。
+"选中第一条"也复用已有的 `select-move(1)`（Rust 在"当前无选中 + ↓"时正好取第一条），
+避免在 `.slint` 里做"模型下标取值"这种不确定写法。
+
+### 编辑器 Ctrl+S：必须单独一个 `FocusScope`
+
+`Ctrl+S` 不能放进 `content-scope`——那会让**列表聚焦时**按 Ctrl+S 也去保存编辑器里的
+残留字段（可能误创建/误覆盖条目）。因此编辑器浮层内单独包一个 `editor-scope`：
+
+```slint
+if (State.editor-open) : Rectangle {
+    TouchArea { ... }                    // 遮罩
+    editor-scope := FocusScope {         // 显式 100%x100%，面板在其中居中
+        KeyBinding { keys: @keys(Control + S); activated => { root.editor-save(); } }
+        EditorPanel { ... }
+    }
+}
+```
+
+`EditorPanel` 的 `init` 会聚焦标题输入框（位于该 scope 内），按键据此冒泡到 `editor-scope`；
+而列表的 ↑/↓/R/C/V/D 在编辑时不会触发（弹层仍在 `content-scope` 之外）。
+
+### R / C / V / D 单键动作
+
+与 Enter 同一套守卫 `enabled: !toolbar.search-focused && (State.selected-id != 0)`，
+分别触发 `edit-requested / copy-requested / view-requested / delete-requested`。
+字母键必须大写（`key_codes.rs` 规则），键名是标识符时小写会被编译器要求改成大写。
+搜索框聚焦时这些键由 TextInput 消费（输入框先拿到按键并 accept），列表聚焦时才生效。
+
 ## 相关文件
 
 - `mnemo-slint/ui/main.slint`（FocusScope + KeyBinding、弹层层级、滚动跟随）
-- `mnemo-slint/ui/components/{EditorPanel,ConfirmDialog,SolidButton,Toast}.slint`（新增）
-- `mnemo-slint/ui/components/{SearchBox,Toolbar,CommandCard}.slint`（聚焦透出 / 上报几何）
+- `mnemo-slint/ui/components/{EditorPanel,ConfirmDialog,ViewerPanel,SolidButton,Toast}.slint`（新增）
+- `mnemo-slint/ui/components/{SearchBox,Toolbar,CommandCard}.slint`（聚焦透出 / 上报几何 / View 按钮 / search-accepted）
 - `mnemo-slint/ui/{state,theme}.slint`（编辑器/确认框/Toast 状态与新 token）
 - `mnemo-slint/src/{main,data,strings,i18n,settings}.rs`（业务回调、i18n、持久化）
 - `mnemo-slint/locales/{en,zh}.json`（语言资源）

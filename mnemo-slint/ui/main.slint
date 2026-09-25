@@ -6,6 +6,7 @@ import { TitleBar } from "components/TitleBar.slint";
 import { Toolbar } from "components/Toolbar.slint";
 import { CommandCard } from "components/CommandCard.slint";
 import { EditorPanel } from "components/EditorPanel.slint";
+import { ViewerPanel } from "components/ViewerPanel.slint";
 import { ConfirmDialog } from "components/ConfirmDialog.slint";
 import { Toast } from "components/Toast.slint";
 // 托盘组件：此处导入是为了让 build.rs 在同一次编译中一并生成 Tray（SystemTrayIcon 根组件）。
@@ -39,8 +40,10 @@ export component MainWindow inherits Window {
 
     // 键盘导航与弹层（实现见 src/main.rs）
     callback select-move(int); // ↑/↓ 移动选中项：+1 / -1
-    callback editor-save();    // 保存（Rust 侧校验 title/content 必填后写库）
-    callback confirm-ok();     // 确认删除（取消/关闭直接在 .slint 侧改 State，不必回 Rust）
+    callback editor-save();       // 保存（Rust 侧校验 title/content 必填后写库）
+    callback confirm-ok();        // 确认删除（取消/关闭直接在 .slint 侧改 State，不必回 Rust）
+    callback view-requested(int); // 查看：Rust 用列表缓存填充 State.viewing 后打开查看弹层
+    callback viewer-edit();       // 查看弹层里的「编辑」：关查看 → 开编辑器
 
     // 无边框窗口的系统级操作（Rust 侧实现，全部由自定义顶栏触发）：
     // 拖动 / 最小化到任务栏 / 最大化还原 / 隐藏到托盘（关闭 ≠ 退出进程，退出走托盘菜单）
@@ -108,6 +111,29 @@ export component MainWindow inherits Window {
             activated => { toolbar.focus-search(); }
         }
 
+        // R / C / V / D：编辑 / 复制 / 查看 / 删除选中项（对齐旧版 egui 的单键动作）。
+        // 与 Enter 同一套守卫：搜索框聚焦时让位给输入，无选中时不触发。
+        KeyBinding {
+            keys: @keys(R);
+            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            activated => { root.edit-requested(State.selected-id); }
+        }
+        KeyBinding {
+            keys: @keys(C);
+            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            activated => { root.copy-requested(State.selected-id); }
+        }
+        KeyBinding {
+            keys: @keys(V);
+            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            activated => { root.view-requested(State.selected-id); }
+        }
+        KeyBinding {
+            keys: @keys(D);
+            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            activated => { root.delete-requested(State.selected-id); }
+        }
+
         // 自定义顶栏：通栏贴顶（不受内容区 Theme.pad-window 影响）。
         // 高度由组件内部的 height: Theme.titlebar-h 决定——非布局子元素不读取 min/max-*，
         // 只写 min/max 会退化成整窗高度，把顶栏内容挤到窗口中间。
@@ -145,6 +171,16 @@ export component MainWindow inherits Window {
                 import-clicked => { root.import-clicked(); }
                 export-clicked => { root.export-clicked(); }
                 new-clicked => { root.new-clicked(); }
+
+                // 搜索框内按 Enter：把操作权交给列表。
+                // content-scope.focus() 会独占焦点（Slint 焦点唯一），搜索框随之失焦；
+                // 之后 ↑/↓/Enter/R/C/V/D 都作用于列表。复用 select-move：无选中时它正好取第一条。
+                search-accepted => {
+                    content-scope.focus();
+                    if (State.selected-id == 0) {
+                        root.select-move(1);
+                    }
+                }
             }
 
             // ---------- 命令卡片列表 ----------
@@ -168,6 +204,7 @@ export component MainWindow inherits Window {
                             State.selected-id = item.id;
                             root.card-activated(item.id);
                         }
+                        view-clicked => { root.view-requested(item.id); }
                         copy-clicked => { root.copy-requested(item.id); }
                         edit-clicked => { root.edit-requested(item.id); }
                         delete-clicked => { root.delete-requested(item.id); }
@@ -205,6 +242,32 @@ export component MainWindow inherits Window {
     }
 
     // ---------- 弹层（声明在内容之后 → 位于最上层）----------
+    // 声明顺序 = z 序：查看 < 编辑 < 确认 < 提示。
+    // 实际操作中三者互斥（查看里点"编辑"会先关掉查看），顺序只决定极端情况下谁在上面。
+
+    // 查看层
+    if (State.viewing-open) : Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        background: Theme.overlay-bg;
+
+        TouchArea {
+            x: 0;
+            y: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        ViewerPanel {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            edit-requested => { root.viewer-edit(); }
+            cancel => { State.viewing-open = false; }
+        }
+    }
+
     // 层级与命中：遮罩是带 TouchArea 的全窗口 Rectangle，它吃掉点击，
     // 既不会穿透到下面的卡片，也不会落到更下层的 WindowMoveArea（弹层打开时不会误拖窗口）。
     // 点击遮罩不关闭弹层：避免误点丢失正在编辑的内容，"取消 / 保存"才是关闭入口。
@@ -222,11 +285,27 @@ export component MainWindow inherits Window {
             height: 100%;
         }
 
-        EditorPanel {
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            save => { root.editor-save(); }
-            cancel => { State.editor-open = false; }
+        // 编辑器自己的焦点作用域：只声明 Ctrl+S。
+        // 为什么必须单独一个 scope：弹层刻意放在 content-scope 之外（避免编辑时触发列表快捷键），
+        // 若把 Ctrl+S 塞进 content-scope，在列表里按 Ctrl+S 会去保存编辑器里的残留内容。
+        // EditorPanel 的 init 会聚焦标题框（在本 scope 内），按键据此冒泡到这里。
+        editor-scope := FocusScope {
+            x: 0;
+            y: 0;
+            width: 100%;
+            height: 100%;
+
+            KeyBinding {
+                keys: @keys(Control + S);
+                activated => { root.editor-save(); }
+            }
+
+            EditorPanel {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                save => { root.editor-save(); }
+                cancel => { State.editor-open = false; }
+            }
         }
     }
 

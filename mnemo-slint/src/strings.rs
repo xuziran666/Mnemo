@@ -45,6 +45,10 @@ pub fn apply(ui: &MainWindow, i18n: &I18n) {
     // 删除确认框
     strings.set_confirm_title(i18n.t("confirm.title").into());
 
+    // 查看弹层（复用 viewer.* 文案）
+    strings.set_viewer_edit(i18n.t("viewer.edit").into());
+    strings.set_viewer_close(i18n.t("viewer.cancel").into());
+
     // 语言下拉的状态：lang-code 决定选中项，lang-label 是按钮上显示的当前语言
     let state = ui.global::<State>();
     state.set_lang_code(i18n.lang().code().into());

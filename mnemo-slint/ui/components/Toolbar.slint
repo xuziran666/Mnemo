@@ -15,6 +15,8 @@ export component Toolbar inherits Rectangle {
     out property <bool> search-focused: search-box.input-focused;
 
     callback query-edited(string);
+    // 搜索框内按 Enter：把焦点交给列表（供主窗口接线）
+    callback search-accepted();
     callback theme-clicked();
     callback lang-clicked();
     callback import-clicked();
@@ -37,6 +39,7 @@ export component Toolbar inherits Rectangle {
             horizontal-stretch: 1;
             text <=> root.query;
             edited(q) => { root.query-edited(q); }
+            accepted => { root.search-accepted(); }
         }
 
         // 主题切换：图标显示"当前主题"（暗色 → 🌙，亮色 → ☀）

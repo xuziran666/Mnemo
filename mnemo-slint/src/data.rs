@@ -137,7 +137,8 @@ pub fn refresh_list(ui: &MainWindow, data: &AppData, query: &str) {
 }
 
 // Command → CommandItem：note/tags 在库里是可空字符串，UI 侧统一为空串与字符串数组。
-fn to_item(command: &Command) -> CommandItem {
+// pub：查看弹层（main.rs::open_viewer）也要用同一套转换，避免两处 tags 解析规则不一致。
+pub fn to_item(command: &Command) -> CommandItem {
     CommandItem {
         id: command.id as i32,
         title: command.title.as_str().into(),
