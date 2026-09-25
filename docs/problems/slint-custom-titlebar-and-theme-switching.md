@@ -110,6 +110,36 @@ Slint 的绑定系统会让整棵树自动重算并重绘，不需要任何手�
   - 最大化状态下拖动被禁用（需求明确要求）；
   - 顶栏双击仅在拖动区（按钮左侧）生效，与系统标题栏一致（按钮区域双击不切换最大化）。
 
+## 后续修复：`min-*`/`max-*` 陷阱引发的两个严重视觉 Bug
+
+首版顶栏上线后出现两个实机 Bug：**(1) 顶栏内容跑到窗口垂直中间；(2) 鼠标移到窗口空白处整窗变红**。
+
+根因（同一个）：**`min-width`/`max-width`/`min-height`/`max-height` 是"布局项约束"，
+非布局子元素不读取它们**——编译器把这些属性 lower 成 layout-constraint
+（`i-slint-compiler/passes/materialize_fake_properties.rs:196-204` → `layout_constraint_prop`），
+只有布局会消费；非布局子元素的 `width`/`height` 仍然默认是父元素的 **100%**。
+
+于是：
+
+- `TitleBar` 只有 `min/max-height: 34px` → 高度 = 整窗高；
+- 里面的三个 `IconButton` 同样只有 `min/max-width/height` → 尺寸也退化成 100%（= 整窗大小），
+  其 `IconGlyph` 用 `(parent - self)/2` 居中 → 名字与图标出现在窗口中间（Bug 1）；
+- 关闭按钮带 `danger: true`，而它的几何覆盖整个窗口 → 鼠标在任何空白处都落进它的 `has-hover` →
+  背景取 `Theme.danger-hover-bg` → 整窗刺眼的红（Bug 2）。
+
+修法（见 `TitleBar.slint`）：
+
+1. 顶栏显式 `height: Theme.titlebar-h`（同时**去掉** `min/max-height`，因为 `height` 与它们互斥）；
+2. 三个窗口按钮放进 `HorizontalLayout { alignment: end; spacing: 0; }` → 成为布局项后
+   `IconButton` 内部的 `min/max-width/height` 才生效（34×34，靠右贴边）；
+3. 拖动区 `TouchArea` 严格限制在顶栏内：`height: Theme.titlebar-h`，宽度让开按钮
+   （`max(0px, minimize-button.x - Theme.gap-control)`）——**必须让开**，否则"后面的兄弟在上"会吞掉按钮点击；
+4. 拖动区本身没有 `background`（TouchArea 无此属性），所以拖动/悬停绝不会改变任何底色；
+   红色只可能出现在关闭按钮的 34×34 悬停区与确认删除按钮上。
+
+教训：**组件内部用 min/max 固定尺寸时，它只能在布局里使用**；一旦要放在非布局位置（如绝对定位的顶栏），
+必须显式给尺寸（或给它套一层布局）。
+
 ## 相关文件
 
 - `mnemo-slint/ui/components/TitleBar.slint`（新增：顶栏 + 拖动/双击 + 三个窗口按钮）

@@ -108,7 +108,9 @@ export component MainWindow inherits Window {
             activated => { toolbar.focus-search(); }
         }
 
-        // 自定义顶栏：通栏贴顶（不受内容区 Theme.pad-window 影响）
+        // 自定义顶栏：通栏贴顶（不受内容区 Theme.pad-window 影响）。
+        // 高度由组件内部的 height: Theme.titlebar-h 决定——非布局子元素不读取 min/max-*，
+        // 只写 min/max 会退化成整窗高度，把顶栏内容挤到窗口中间。
         titlebar := TitleBar {
             x: 0;
             y: 0;

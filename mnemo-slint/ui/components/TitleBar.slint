@@ -17,8 +17,12 @@ export component TitleBar inherits Rectangle {
     callback maximize-clicked();
     callback close-clicked();
 
-    min-height: Theme.titlebar-h;
-    max-height: Theme.titlebar-h;
+    // 高度必须显式给：
+    // min-height/max-height 是"布局项约束"（编译器把它们 lower 成 layout-constraint 属性，
+    // 见 i-slint-compiler/passes/materialize_fake_properties.rs:196-204），**非布局子元素不会读取**，
+    // 其 width/height 会退化成父元素的 100% —— 这正是"顶栏跑到窗口中间 + 悬停整窗变红"的根因。
+    // 另外 height 与 min-height/max-height 互斥（编译器报 "Cannot specify both"），所以这里只保留 height。
+    height: Theme.titlebar-h;
     background: Theme.titlebar-bg;
 
     // 拖动相关状态：按下位置 + 是否处于按下状态 + 是否已经触发过拖动
@@ -59,37 +63,47 @@ export component TitleBar inherits Rectangle {
     }
 
     // ---------- 右：窗口控制按钮（flat = 常态透明底，悬停才高亮）----------
-    close-button := IconButton {
-        x: parent.width - self.width;
+    // 必须放进 HorizontalLayout：IconButton 内部是用 min/max-width/height 固定 34x34 的，
+    // 而 min/max 只在"布局项"上生效；非布局子元素会退化成 100% 尺寸
+    // （红色 Bug 的直接原因：整窗大小的关闭按钮在任意位置都算 hover，于是整窗变红）。
+    // alignment: end → 靠右贴边；顺序为 最小化 / 最大化还原 / 关闭。
+    control-row := HorizontalLayout {
+        x: 0;
         y: 0;
-        kind: IconKind.icon-close;
-        danger: true; // 悬停变红
-        flat: true;
-        clicked => { root.close-clicked(); }
-    }
-    maximize-button := IconButton {
-        x: close-button.x - self.width;
-        y: 0;
-        // 最大化状态由 Rust 维护并同步，图标随之切换
-        kind: State.maximized ? IconKind.icon-restore : IconKind.icon-maximize;
-        flat: true;
-        clicked => { root.maximize-clicked(); }
-    }
-    minimize-button := IconButton {
-        x: maximize-button.x - self.width;
-        y: 0;
-        kind: IconKind.icon-minimize;
-        flat: true;
-        clicked => { root.minimize-clicked(); }
+        width: parent.width;
+        height: parent.height;
+        spacing: 0;
+        alignment: end;
+
+        minimize-button := IconButton {
+            kind: IconKind.icon-minimize;
+            flat: true;
+            clicked => { root.minimize-clicked(); }
+        }
+        maximize-button := IconButton {
+            // 最大化状态由 Rust 维护并同步，图标随之切换
+            kind: State.maximized ? IconKind.icon-restore : IconKind.icon-maximize;
+            flat: true;
+            clicked => { root.maximize-clicked(); }
+        }
+        close-button := IconButton {
+            kind: IconKind.icon-close;
+            danger: true; // 仅此按钮悬停变红，且范围只有 34x34
+            flat: true;
+            clicked => { root.close-clicked(); }
+        }
     }
 
     // ---------- 中：拖动区 + 双击最大化 ----------
-    // 宽度让开右侧按钮（声明顺序 + 宽度共同保证按钮的点击不被遮挡）。
+    // 三条约束（缺一不可）：
+    // 1) 高度严格等于顶栏高度；TouchArea 本身没有 background 属性，所以拖动/悬停绝不会改变任何底色；
+    // 2) 宽度让开右侧按钮：后面的兄弟元素在上，若铺满整条顶栏，按钮的点击会被它吞掉；
+    // 3) 拖动阈值 4px（与 WindowMoveArea 一致），避免普通点击/双击被误判成拖动。
     title-drag := TouchArea {
         x: 0;
         y: 0;
         width: max(0px, minimize-button.x - Theme.gap-control);
-        height: parent.height;
+        height: Theme.titlebar-h;
         mouse-cursor: MouseCursor.default;
 
         double-clicked => { root.maximize-clicked(); }

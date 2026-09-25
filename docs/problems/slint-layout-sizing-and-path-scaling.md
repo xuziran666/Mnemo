@@ -12,6 +12,15 @@
 1. Slint 的尺寸规则有两条关键约束：
    - **不在布局内的元素，`width`/`height` 默认等于父元素的 100%**。所以「卡片内容是自然高度」这件事不会自动成立，它默认会去撑满父元素。
    - **布局内的子元素，其 `x`/`y`/`width`/`height` 由布局接管，应改用布局项属性 `min-*`/`max-*`/`preferred-*`**。用 `width`/`height` 固定在布局里既不可靠也无法阻止被拉伸。
+   - ⚠️ **`min-*`/`max-*` 只对"布局项"生效，非布局子元素不读取它们**：编译器把它们 lower 成
+     layout-constraint 属性（`i-slint-compiler/passes/materialize_fake_properties.rs:196-204` 的
+     `layout_constraint_prop`），只有布局会消费。所以**非布局子元素必须显式写 `width`/`height`**，
+     否则尺寸退化为父元素的 100%（注意 `height` 与 `min-height`/`max-height` 互斥，不能同时写）。
+     **本项目实际踩过这个坑**：自定义顶栏（`TitleBar.slint`）最初只写了 `min/max-height: 34px`，
+     于是整块顶栏高度 = 整窗高；里面的 `IconButton` 同样只有 `min/max-width/height`，尺寸也变成 100%，
+     导致 (a) 顶栏内容（名字/图标）落到窗口中间，(b) 带 `danger: true` 的关闭按钮在**整个窗口**范围内都算
+     `has-hover`，鼠标一到空白处整窗就变成 `danger-hover-bg` 红色。修法：顶栏写显式 `height`，
+     三个窗口按钮放进 `HorizontalLayout`（成为布局项后 min/max 才生效）。
    - `ListView`/`ScrollView` 都没有 `spacing` 属性（两者属性集相同），卡片间距必须自己造：本项目用内部 `VerticalLayout` 的 `spacing` 实现。
 2. `Path` 的官方文档明确写着：coordinates 处于 path 自身的"虚拟坐标系"，**"If the width and height properties are non-zero, then the entire shape is fit into these bounds - by scaling accordingly."**。即 `Path` 会把命令图形缩放到元素的 `width`/`height` 边界内。当命令包围盒（例如 x∈[3.2,12.8]、y∈[6.6,11.4]）与元素尺寸（16×16）不一致时，图形就会被拉伸放大并偏离预期位置。
 
