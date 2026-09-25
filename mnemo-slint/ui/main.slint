@@ -24,6 +24,8 @@ export { Tray } from "tray.slint";
 // 主窗口：无边框 + 始终置顶 + 失去焦点自动隐藏（焦点钩子在 Rust 侧，见 src/main.rs）。
 export component MainWindow inherits Window {
     // 供 Rust 侧绑定业务逻辑
+    // 注意：card-activated = 点击卡片正文，当前只用于「选中」（Rust 侧不注册处理函数），
+    // 刻意不沿用旧版"点正文即复制/查看"的行为，避免误关窗。
     callback card-activated(int);
     callback copy-requested(int);
     callback edit-requested(int);

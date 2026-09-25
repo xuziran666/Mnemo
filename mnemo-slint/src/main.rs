@@ -42,6 +42,9 @@ struct WindowFlags {
     /// 最小化进行中：抑制"失去焦点自动隐藏"。
     /// 最小化必然伴随 Focused(false)，不抑制的话"最小化到任务栏"会变成"隐藏到托盘"。
     minimizing: bool,
+    /// 原生文件对话框（导入/导出）打开中：同样抑制失焦隐藏。
+    /// rfd 的对话框会让主窗口真失焦，不抑制的话窗口会藏到对话框背后。
+    dialog_open: bool,
 }
 
 impl WindowFlags {
@@ -49,8 +52,16 @@ impl WindowFlags {
         Self {
             tray_ready: true,
             minimizing: false,
+            dialog_open: false,
         }
     }
+}
+
+// 原生文件对话框打开/关闭时切换抑制标志（见 WindowFlags::dialog_open）。
+fn set_dialog_open(flags: &Rc<Cell<WindowFlags>>, open: bool) {
+    let mut f = flags.get();
+    f.dialog_open = open;
+    flags.set(f);
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -83,7 +94,7 @@ fn main() -> Result<(), slint::PlatformError> {
     data::refresh_list(&ui, &app_data, "");
     install_data_bindings(&ui, &app_data);
     install_business_callbacks(&ui, &app_data, &flags, &i18n, &toast_token);
-    install_placeholder_callbacks(&ui);
+    install_io_callbacks(&ui, &app_data, &flags, &i18n, &toast_token);
 
     install_window_controls(&ui, flags.clone());
     install_window_event_hook(&ui, flags.clone());
@@ -140,12 +151,115 @@ fn install_data_bindings(ui: &MainWindow, app_data: &Rc<data::AppData>) {
     });
 }
 
-// 尚未接入业务的回调：只打印日志（导入/导出需要 rfd 文件对话框；卡片单击进 Viewer 待做），
-// 保留日志是为了"点了没反应"时能立刻区分是接线断了还是功能未实现。
-fn install_placeholder_callbacks(ui: &MainWindow) {
-    ui.on_card_activated(|id| eprintln!("[mnemo] card-activated id={id}"));
-    ui.on_import_clicked(|| eprintln!("[mnemo] import-clicked（待接入 rfd）"));
-    ui.on_export_clicked(|| eprintln!("[mnemo] export-clicked（待接入 rfd）"));
+// ---------- 导入 / 导出（原生文件对话框）----------
+// 说明：rfd 的对话框是阻塞式的（调用期间主线程进入对话框自己的消息循环），与旧版 egui 的做法一致。
+// 期间必须抑制"失焦自动隐藏"（set_dialog_open），否则窗口会被藏到对话框背后。
+fn install_io_callbacks(
+    ui: &MainWindow,
+    app_data: &Rc<data::AppData>,
+    flags: &Rc<Cell<WindowFlags>>,
+    i18n: &Rc<RefCell<i18n::I18n>>,
+    toast_token: &Rc<Cell<u32>>,
+) {
+    // 导出：库 → JSON → 保存对话框 → 写文件
+    {
+        let app_data = app_data.clone();
+        let flags = flags.clone();
+        let i18n = i18n.clone();
+        let token = toast_token.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_export_clicked(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+
+            let json = match app_data.export() {
+                Ok(json) => json,
+                Err(err) => {
+                    eprintln!("[mnemo] 导出失败：{err}");
+                    let message = i18n.borrow().t("toast.exportFailed");
+                    show_toast(&ui, &message, &token);
+                    return;
+                }
+            };
+
+            let filter = i18n.borrow().t("io.exportFilter");
+            set_dialog_open(&flags, true);
+            let path = rfd::FileDialog::new()
+                .set_file_name("mnemo-export.json")
+                .add_filter(filter, &["json"])
+                .save_file();
+            set_dialog_open(&flags, false);
+
+            // 用户取消：直接返回（不弹 Toast 打扰）
+            let Some(path) = path else { return };
+            match std::fs::write(&path, json) {
+                Ok(()) => {
+                    let message = i18n.borrow().t("toast.exported");
+                    show_toast(&ui, &message, &token);
+                }
+                Err(err) => {
+                    eprintln!("[mnemo] 写出文件失败：{err}");
+                    let message = i18n.borrow().t("toast.exportFailed");
+                    show_toast(&ui, &message, &token);
+                }
+            }
+        });
+    }
+
+    // 导入：打开对话框 → 读文件 → 写库 → 刷新列表 + 带条数的 Toast
+    {
+        let app_data = app_data.clone();
+        let flags = flags.clone();
+        let i18n = i18n.clone();
+        let token = toast_token.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_import_clicked(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+
+            let filter = i18n.borrow().t("io.importFilter");
+            set_dialog_open(&flags, true);
+            let path = rfd::FileDialog::new()
+                .add_filter(filter, &["json"])
+                .pick_file();
+            set_dialog_open(&flags, false);
+
+            let Some(path) = path else { return };
+            let json = match std::fs::read_to_string(&path) {
+                Ok(json) => json,
+                Err(err) => {
+                    eprintln!("[mnemo] 读取文件失败：{err}");
+                    let message = i18n.borrow().t("toast.importFailed");
+                    show_toast(&ui, &message, &token);
+                    return;
+                }
+            };
+
+            match app_data.import(json) {
+                Ok(result) => {
+                    // 与删除/保存一致：保持当前搜索条件刷新列表
+                    data::refresh_current(&ui, &app_data);
+                    let imported = result.imported.to_string();
+                    let skipped = result.skipped.to_string();
+                    let message = {
+                        let i18n = i18n.borrow();
+                        if result.skipped > 0 {
+                            i18n.t_args(
+                                "toast.importSkipped",
+                                &[("imported", imported.as_str()), ("skipped", skipped.as_str())],
+                            )
+                        } else {
+                            i18n.t_args("toast.imported", &[("count", imported.as_str())])
+                        }
+                    };
+                    show_toast(&ui, &message, &token);
+                }
+                Err(err) => {
+                    eprintln!("[mnemo] 导入失败：{err}");
+                    let message = i18n.borrow().t("toast.importFailed");
+                    show_toast(&ui, &message, &token);
+                }
+            }
+        });
+    }
 }
 
 // ---------- 业务回调：复制 / 选中移动 / 增删改 ----------
@@ -422,9 +536,8 @@ fn install_window_event_hook(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
                 }
                 winit::event::WindowEvent::Focused(false) => {
                     let f = flags.get();
-                    if armed.get() && f.tray_ready && !f.minimizing {
-                        // TODO(P1)：接入 rfd 文件对话框（导入/导出）时，需要用 suppress 标志
-                        // 临时禁用这里，否则打开对话框会让窗口自动隐藏。
+                    // 两种抑制：最小化中（否则最小化会变成隐藏）、原生文件对话框打开中（rfd 会让窗口真失焦）
+                    if armed.get() && f.tray_ready && !f.minimizing && !f.dialog_open {
                         let _ = window.hide();
                     }
                 }

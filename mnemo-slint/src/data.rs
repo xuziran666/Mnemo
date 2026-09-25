@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use mnemo_core::models::{Command, NewCommand};
+use mnemo_core::models::{Command, ImportResult, NewCommand};
 use mnemo_core::rusqlite::Connection;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
@@ -103,6 +103,16 @@ impl AppData {
 
     pub fn delete(&self, id: i64) -> Result<(), String> {
         mnemo_core::delete(self.connection()?, id)
+    }
+
+    // 全库导出为 JSON 字符串（写文件由 UI 层负责，core 不做 IO）。
+    pub fn export(&self) -> Result<String, String> {
+        mnemo_core::export(self.connection()?)
+    }
+
+    // 从 JSON 字符串导入（事务性；跳过空 title/content，kind 归一化都在 core 内部）。
+    pub fn import(&self, json: String) -> Result<ImportResult, String> {
+        mnemo_core::import(self.connection()?, json)
     }
 
     fn connection(&self) -> Result<&Connection, String> {
