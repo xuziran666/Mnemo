@@ -17,11 +17,29 @@
 - **结构化管理** — 每条命令可附带标题、备注和标签，方便整理。
 - **日夜主题** — 一键切换日间/夜间模式，选择会被记住。
 - **查看模式** — `Enter` 以只读方式查看知识笔记（纯文本）；查看器内 `Enter` 原位进入编辑，`Ctrl+S` 保存，`Esc` 返回。每条内容分为**代码片段**（用于复制）与**知识笔记**（用于查看）两种类型。
-- **纯 Rust 实现** — 使用 [`egui`](https://github.com/emilk/egui) 原生桌面界面，无 Web 运行时、无 Node.js。
+- **纯 Rust 实现** — 原生桌面界面，无 Web 运行时、无 Node.js。两套前端共用同一份核心：[Slint](https://slint.dev)（当前主用）与 [egui](https://github.com/emilk/egui)（旧版）。
 
 ## 截图
 
 ![Mnemo](docs/screenshots/main.png)
+
+## 实现版本
+
+仓库内有两套前端，共用同一个 `mnemo-core`（SQLite 持久化与业务逻辑）以及同一份数据/设置文件，
+可以随时切换：
+
+| crate | 界面 | 状态 | 运行 |
+|---|---|---|---|
+| `mnemo-slint` | [Slint](https://slint.dev) — 无边框窗口 + 自绘顶栏、系统托盘、日夜主题 | **当前主用** | `cargo run -p mnemo-slint` |
+| `mnemo-egui` | [egui](https://github.com/emilk/egui) / eframe | 旧版，仍可构建 | `cargo run -p mnemo-egui` |
+
+### 你可能注意到的差异
+
+| 行为 | `mnemo-slint` | `mnemo-egui` |
+|---|---|---|
+| 窗口 | 无边框 + 自绘顶栏，失焦自动隐藏，从托盘唤回 | 系统原生边框 |
+| 对**笔记**按 `Enter` | 复制其正文（用 `v` 或「查看」按钮打开只读查看层） | 打开查看器 |
+| 主题 | 默认暗色，工具栏一键切换并记住 | 首次运行跟随系统主题 |
 
 ## 安装
 
@@ -38,10 +56,12 @@
 只需 [Rust](https://rustup.rs)（stable）。
 
 ```bash
-cargo build --release -p mnemo-egui
+cargo build --release -p mnemo-slint   # Slint 前端（当前主用）
+cargo build --release -p mnemo-egui    # egui 前端（旧版）
 ```
 
-生成的二进制位于 `target/release/mnemo`（Windows 为 `mnemo.exe`）。
+Slint 版二进制位于 `target/release/mnemo-slint`（Windows 为 `mnemo-slint.exe`）；
+旧版 egui 版位于 `target/release/mnemo`。
 
 ## 快捷键
 
@@ -70,8 +90,9 @@ cargo build --release -p mnemo-egui
 ## 开发
 
 ```bash
-cargo run -p mnemo-egui      # 编译并运行
-cargo build --release -p mnemo-egui
+cargo run -p mnemo-slint        # 运行 Slint 前端
+cargo run -p mnemo-egui         # 运行旧版 egui 前端
+cargo check -p mnemo-slint      # 只做编译检查（快）
 cargo test --workspace
 ```
 
@@ -79,7 +100,8 @@ cargo test --workspace
 
 ```
 mnemo-core/   # SQLite 持久化与业务逻辑（不依赖 GUI 框架）
-mnemo-egui/   # egui/eframe 桌面应用
+mnemo-slint/  # Slint 桌面应用（当前主用）
+mnemo-egui/   # egui/eframe 桌面应用（旧版）
 ```
 
 ## 数据存储
@@ -94,10 +116,19 @@ mnemo-egui/   # egui/eframe 桌面应用
 
 备份该文件即可迁移你的全部命令。
 
+偏好设置保存在同目录的 `settings.json`（两套前端共用）：
+
+| 字段 | 含义 |
+|---|---|
+| `lang` | 界面语言（`en` / `zh`） |
+| `theme` | `dark` / `light` |
+| `window` | 上次窗口尺寸与最大化状态（仅 `mnemo-slint`） |
+
 ## 技术栈
 
 - [Rust](https://www.rust-lang.org)
-- [egui / eframe](https://github.com/emilk/egui) — 原生立即模式 GUI
+- [Slint](https://slint.dev) — 声明式原生 GUI（`mnemo-slint`：自绘顶栏、托盘、主题）
+- [egui / eframe](https://github.com/emilk/egui) — 原生立即模式 GUI（`mnemo-egui`，旧版）
 - [SQLite](https://www.sqlite.org)（通过 [rusqlite](https://github.com/rusqlite/rusqlite) 集成）
 - [rfd](https://github.com/PolyMeilex/rfd) — 原生文件对话框
 - [arboard](https://github.com/1Password/arboard) — 系统剪贴板
