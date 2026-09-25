@@ -1,0 +1,25 @@
+import { Theme } from "../theme.slint";
+
+// 药丸状徽章：Code = 蓝底(#1f3a8a)，Note = 紫底(#4a3a8a)，白字 11px，圆角 4px。
+// 说明：尺寸用 min/max 而非 width/height 固定，以便在布局中作为固定尺寸的 item 使用。
+export component Badge inherits Rectangle {
+    in property <string> text;
+    in property <color> bg: Theme.badge-code-bg;
+
+    background: root.bg;
+    border-radius: Theme.radius-chip;
+
+    min-width: label.preferred-width + 16px;
+    max-width: label.preferred-width + 16px;
+    min-height: label.preferred-height + 4px;
+    max-height: label.preferred-height + 4px;
+
+    label := Text {
+        text: root.text;
+        color: Theme.badge-text;
+        font-size: Theme.fs-badge;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

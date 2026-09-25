@@ -1,0 +1,102 @@
+import { Theme } from "theme.slint";
+import { State, Strings } from "state.slint";
+import { Toolbar } from "components/Toolbar.slint";
+import { CommandCard } from "components/CommandCard.slint";
+// 托盘组件：此处导入是为了让 build.rs 在同一次编译中一并生成 Tray（SystemTrayIcon 根组件）。
+import { Tray } from "tray.slint";
+
+// 主窗口：无边框 + 始终置顶 + 失去焦点自动隐藏（焦点钩子在 Rust 侧，见 src/main.rs）。
+export component MainWindow inherits Window {
+    // 供 Rust 侧绑定业务逻辑
+    callback card-activated(int id);
+    callback copy-requested(int id);
+    callback edit-requested(int id);
+    callback delete-requested(int id);
+    callback import-clicked();
+    callback export-clicked();
+    callback new-clicked();
+    callback lang-selected(string code);
+
+    title: "Mnemo";
+    width: 900px;
+    height: 650px;
+    min-width: 500px;
+    min-height: 400px;
+    background: Theme.bg;
+    icon: @image-url("../assets/icons/icon.png");
+
+    no-frame: true;
+    always-on-top: true;
+    resize-border-width: 6px;
+
+    // 无边框窗口的拖动区域：声明在内容之前 → 位于底层，不抢占工具栏控件的点击
+    WindowMoveArea {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: Theme.pad-window + Theme.control-h;
+    }
+
+    VerticalLayout {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        padding: Theme.pad-window;
+        spacing: Theme.gap-card;
+
+        Toolbar {
+            query <=> State.query;
+            lang-label: State.lang-label;
+            lang-code: State.lang-code;
+            langs: State.langs;
+
+            query-edited(q) => {
+                // P0：关键词只写入 State；P1 在此处做防抖并查询 mnemo-core
+                State.query = q;
+            }
+            lang-selected(code) => {
+                State.lang-code = code;
+                root.lang-selected(code);
+            }
+            import-clicked => { root.import-clicked(); }
+            export-clicked => { root.export-clicked(); }
+            new-clicked => { root.new-clicked(); }
+        }
+
+        // ---------- 命令卡片列表 ----------
+        if (State.commands.length > 0) : card-list := ListView {
+            vertical-stretch: 1;
+
+            // 每个列表项：卡片 + 8px 底间距（ListView 没有 spacing 属性）
+            for item in State.commands : Rectangle {
+                width: card-list.visible-width;
+                height: card.height + Theme.gap-card;
+
+                card := CommandCard {
+                    item: item;
+                    selected: State.selected-id == item.id;
+
+                    card-clicked => {
+                        // 选中态由 UI 自己维护；P1 由 Rust 侧接管键盘导航
+                        State.selected-id = card.item.id;
+                        root.card-activated(card.item.id);
+                    }
+                    copy-clicked => { root.copy-requested(card.item.id); }
+                    edit-clicked => { root.edit-requested(card.item.id); }
+                    delete-clicked => { root.delete-requested(card.item.id); }
+                }
+            }
+        }
+
+        // ---------- 空态 ----------
+        if (State.commands.length == 0) : Text {
+            vertical-stretch: 1;
+            text: Strings.empty;
+            color: Theme.text-muted;
+            font-size: Theme.fs-body;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}

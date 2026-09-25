@@ -1,0 +1,54 @@
+import { Theme } from "../theme.slint";
+import { Strings } from "../state.slint";
+
+// 搜索框：自适应宽度、深色底、圆角 8、1px 描边；聚焦时描边切换为强调色。
+export component SearchBox inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder: Strings.search-placeholder;
+    callback edited(string);
+    callback accepted();
+
+    background: Theme.control-bg;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.border;
+    border-radius: Theme.radius-control;
+
+    min-height: Theme.control-h;
+    max-height: Theme.control-h;
+
+    animate border-color { duration: 120ms; }
+
+    // 点击内边距区域也能聚焦输入框（声明在最前 → 位于底层）
+    pad-touch := TouchArea {
+        mouse-cursor: text;
+        clicked => { input.focus(); }
+    }
+
+    // Slint 的 TextInput 没有 placeholder-text，内容为空时叠一层占位文本
+    if (root.text == "") : Text {
+        x: 12px;
+        y: 0;
+        width: parent.width - 24px;
+        height: parent.height;
+        text: root.placeholder;
+        color: Theme.text-muted;
+        font-size: Theme.fs-control;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+    }
+
+    input := TextInput {
+        x: 12px;
+        y: 0;
+        width: parent.width - 24px;
+        height: parent.height;
+        text <=> root.text;
+        color: Theme.text;
+        font-size: Theme.fs-control;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        single-line: true;
+        edited => { root.edited(root.text); }
+        accepted => { root.accepted(); }
+    }
+}

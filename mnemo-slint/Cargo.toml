@@ -1,0 +1,23 @@
+[package]
+name = "mnemo-slint"
+version = "0.1.0"
+edition = "2021"
+description = "Mnemo - a local command manager (pure Rust / Slint UI)"
+authors = ["xuziran666"]
+license = "MIT"
+build = "build.rs"
+
+[[bin]]
+# 注意：bin 名暂用 mnemo-slint，避免与 mnemo-egui 的 bin "mnemo" 出现输出文件名冲突；
+# 待旧版 egui 实现移除后再改回 "mnemo"。
+name = "mnemo-slint"
+path = "src/main.rs"
+
+[dependencies]
+# GUI 框架：声明式 UI。
+# unstable-winit-030 用于通过 winit 事件钩子实现"失去焦点自动隐藏"，并锁定 winit 0.30 版本的适配层。
+slint = { version = "~1.18", features = ["unstable-winit-030"] }
+
+[build-dependencies]
+# 构建期编译 .slint 文件（版本与 slint 保持一致）
+slint-build = "~1.18"

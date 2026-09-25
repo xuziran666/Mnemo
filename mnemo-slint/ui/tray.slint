@@ -1,0 +1,26 @@
+// 系统托盘。
+// 主窗口为无边框 + 失去焦点自动隐藏，托盘是唯一的唤回入口，因此菜单至少要有"显示"与"退出"。
+export component Tray inherits SystemTrayIcon {
+    // 托盘图标与菜单文案（文案 P1 接入 i18n 后可由 Rust 侧覆盖）
+    in property <string> label-show: "Show Mnemo";
+    in property <string> label-quit: "Quit";
+
+    icon: @image-url("../assets/icons/tray.png");
+    tooltip: "Mnemo";
+
+    callback show-window();
+    callback quit();
+
+    // SystemTrayIcon 必须恰好包含一个 Menu 子元素
+    Menu {
+        MenuItem {
+            title: root.label-show;
+            activated => { root.show-window(); }
+        }
+        MenuSeparator { }
+        MenuItem {
+            title: root.label-quit;
+            activated => { root.quit(); }
+        }
+    }
+}

@@ -1,0 +1,58 @@
+import { Theme } from "../theme.slint";
+import { LangOption } from "../state.slint";
+import { SearchBox } from "SearchBox.slint";
+import { LangMenu } from "LangMenu.slint";
+import { IconButton, IconKind } from "IconButton.slint";
+
+// 顶部工具栏：搜索框（自适应宽度）+ 语言下拉 + 导入 / 导出 / 新建图标按钮。
+export component Toolbar inherits Rectangle {
+    in-out property <string> query;
+    in property <string> lang-label: "English";
+    in property <string> lang-code: "en";
+    in property <[LangOption]> langs;
+
+    callback query-edited(string);
+    callback lang-selected(string);
+    callback import-clicked();
+    callback export-clicked();
+    callback new-clicked();
+
+    background: transparent;
+    min-height: Theme.control-h;
+    max-height: Theme.control-h;
+
+    HorizontalLayout {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        spacing: Theme.gap-control;
+
+        // 搜索框占满剩余宽度
+        SearchBox {
+            horizontal-stretch: 1;
+            text <=> root.query;
+            edited(q) => { root.query-edited(q); }
+        }
+
+        LangMenu {
+            label: root.lang-label;
+            code: root.lang-code;
+            options: root.langs;
+            selected(c) => { root.lang-selected(c); }
+        }
+
+        IconButton {
+            kind: IconKind.icon-import;
+            clicked => { root.import-clicked(); }
+        }
+        IconButton {
+            kind: IconKind.icon-export;
+            clicked => { root.export-clicked(); }
+        }
+        IconButton {
+            kind: IconKind.icon-add;
+            clicked => { root.new-clicked(); }
+        }
+    }
+}

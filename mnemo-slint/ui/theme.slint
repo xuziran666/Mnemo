@@ -1,0 +1,62 @@
+// 全局设计 token（Theme 单例）。
+// 色值来源：docs/screenshots/image.png 设计图；标注“自拟”的为设计图未给出、按规范描述推导的值。
+// 说明：Slint 的 global 只能包含属性/回调/函数，不能包含元素，因此这里全部为 out property。
+export global Theme {
+    // ---------- 背景与描边 ----------
+    out property <color> bg: #1e1e1e;               // 窗口背景
+    out property <color> card-bg: #2a2a2a;          // 卡片常态底色
+    out property <color> card-bg-selected: #333333; // 卡片选中底色
+    out property <color> control-bg: #2a2a2a;       // 搜索框/下拉/图标按钮底色
+    out property <color> control-bg-hover: #333333; // 图标按钮悬停底色
+    out property <color> border: #3a3a3a;           // 常态描边
+    out property <color> border-hover: #4a4a4a;     // 自拟：规范仅写“悬停时边框稍微变亮”
+    out property <color> accent: #5b7cfa;           // 强调色：选中描边
+
+    // ---------- 文本 ----------
+    out property <color> text: #e6e6e6;             // 主文本
+    out property <color> text-muted: #9a9a9a;       // 次要文本 / 占位符
+    out property <color> code: #9ecbff;             // Snippet 代码文本
+
+    // ---------- 徽章与标签 ----------
+    out property <color> badge-code-bg: #1f3a8a;    // Code 徽章
+    out property <color> badge-note-bg: #4a3a8a;    // Note 徽章（同色系紫）
+    out property <color> badge-text: #ffffff;
+    out property <color> tag-bg: #333333;           // 标签底色
+
+    // ---------- 卡片操作按钮的悬停色（自拟：规范只给了颜色名） ----------
+    out property <color> hover-view: #5b7cfa;       // View  -> 蓝
+    out property <color> hover-copy: #4ec26a;       // Copy  -> 绿
+    out property <color> hover-edit: #e0a33c;       // Edit  -> 橙
+    out property <color> hover-delete: #e05252;     // Delete-> 红
+
+    // ---------- 圆角 ----------
+    out property <length> radius-card: 8px;
+    out property <length> radius-control: 8px;
+    out property <length> radius-chip: 4px;
+
+    // ---------- 间距与内边距 ----------
+    out property <length> pad-window: 16px;
+    out property <length> pad-card: 12px;
+    out property <length> gap-card: 8px;
+    out property <length> gap-control: 8px;
+    out property <length> gap-action: 12px;
+    out property <length> gap-chip: 6px;
+
+    // ---------- 字号 ----------
+    out property <length> fs-badge: 11px;
+    out property <length> fs-title: 14px;
+    out property <length> fs-body: 13px;
+    out property <length> fs-chip: 12px;
+    out property <length> fs-control: 13px;
+
+    // ---------- 控件尺寸 ----------
+    out property <length> control-h: 34px;          // 工具栏控件高度
+    out property <length> icon-size: 16px;          // 图标绘制区（IconGlyph 的 path 坐标按 16x16 编写）
+    out property <length> icon-button-w: 34px;
+    out property <length> lang-menu-w: 96px;
+
+    // ---------- 字体 ----------
+    // Slint 没有 monospace 通用族关键字，代码字体必须由 Rust 侧按平台写入具体族名
+    // （Windows: Consolas / macOS: Menlo / Linux: Noto Sans Mono）。
+    in-out property <string> code-font-family: "Consolas";
+}

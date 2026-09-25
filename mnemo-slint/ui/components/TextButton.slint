@@ -1,0 +1,31 @@
+import { Theme } from "../theme.slint";
+
+// 卡片上的无边框文字按钮（View / Copy / Edit / Delete）。
+// 常态为次要色，悬停时变为由调用方指定的 hover-color。
+export component TextButton inherits Rectangle {
+    in property <string> text;
+    in property <color> hover-color: Theme.accent;
+    callback clicked();
+
+    background: transparent;
+
+    min-width: label.preferred-width + 4px;
+    max-width: label.preferred-width + 4px;
+    min-height: label.preferred-height + 4px;
+    max-height: label.preferred-height + 4px;
+
+    label := Text {
+        text: root.text;
+        color: touch.has-hover ? root.hover-color : Theme.text-muted;
+        font-size: Theme.fs-body;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        animate color { duration: 120ms; }
+    }
+
+    // 声明在文字之后 → 位于上层，负责命中与悬停检测
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

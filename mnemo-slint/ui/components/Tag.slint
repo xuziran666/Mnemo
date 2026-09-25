@@ -1,0 +1,22 @@
+import { Theme } from "../theme.slint";
+
+// 标签 chip：深灰底(#333333)，圆角 4px，字号 12px。
+export component Tag inherits Rectangle {
+    in property <string> text;
+
+    background: Theme.tag-bg;
+    border-radius: Theme.radius-chip;
+
+    min-width: label.preferred-width + 16px;
+    max-width: label.preferred-width + 16px;
+    min-height: label.preferred-height + 4px;
+    max-height: label.preferred-height + 4px;
+
+    label := Text {
+        text: root.text;
+        color: Theme.text-muted;
+        font-size: Theme.fs-chip;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

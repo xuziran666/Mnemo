@@ -1,0 +1,110 @@
+import { Theme } from "../theme.slint";
+import { LangOption } from "../state.slint";
+
+// 语言下拉菜单：按钮（English ▾）+ PopupWindow 列表。
+export component LangMenu inherits Rectangle {
+    in property <string> label: "English";
+    in property <string> code: "en";
+    in property <[LangOption]> options;
+    callback selected(string code);
+
+    private property <length> pad-x: 12px;
+    private property <length> caret-w: 9px;
+    private property <length> caret-h: 5px;
+    private property <length> row-h: 30px;
+
+    background: Theme.control-bg;
+    border-width: 1px;
+    border-color: popup.is-open ? Theme.accent : Theme.border;
+    border-radius: Theme.radius-control;
+
+    min-width: Theme.lang-menu-w;
+    max-width: Theme.lang-menu-w;
+    min-height: Theme.control-h;
+    max-height: Theme.control-h;
+
+    animate border-color { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { popup.show(); }
+    }
+
+    Text {
+        x: root.pad-x;
+        y: 0;
+        width: parent.width - root.pad-x * 2 - root.caret-w - Theme.gap-control;
+        height: parent.height;
+        text: root.label;
+        color: Theme.text;
+        font-size: Theme.fs-control;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+    }
+
+    // 下拉箭头：向下三角形，展开时旋转 180°
+    caret := Path {
+        x: parent.width - root.pad-x - root.caret-w;
+        y: (parent.height - root.caret-h) / 2;
+        width: root.caret-w;
+        height: root.caret-h;
+        commands: "M 0 0 L 9 0 L 4.5 5 Z";
+        fill: Theme.text-muted;
+        rotation-angle: popup.is-open ? 180deg : 0deg;
+        animate rotation-angle { duration: 120ms; }
+    }
+
+    // 下拉列表：x/y 相对父元素（紧贴按钮下方），高度按选项数量计算
+    popup := PopupWindow {
+        x: 0;
+        y: root.height + 4px;
+        width: root.width;
+        height: root.options.length * root.row-h + 8px;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: Theme.control-bg;
+            border-width: 1px;
+            border-color: Theme.border;
+            border-radius: Theme.radius-control;
+
+            VerticalLayout {
+                x: 4px;
+                y: 4px;
+                width: parent.width - 8px;
+                height: parent.height - 8px;
+                spacing: 0;
+
+                for opt in root.options : Rectangle {
+                    min-height: root.row-h;
+                    max-height: root.row-h;
+                    background: opt-touch.has-hover ? Theme.control-bg-hover : transparent;
+                    border-radius: Theme.radius-chip;
+
+                    Text {
+                        x: 8px;
+                        y: 0;
+                        width: parent.width - 16px;
+                        height: parent.height;
+                        text: opt.label;
+                        color: opt.code == root.code ? Theme.accent : Theme.text;
+                        font-size: Theme.fs-control;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+                    }
+
+                    // 声明在文字之后 → 位于上层，负责命中与悬停检测
+                    opt-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            popup.close();
+                            root.selected(opt.code);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

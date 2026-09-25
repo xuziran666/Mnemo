@@ -1,0 +1,117 @@
+import { Theme } from "../theme.slint";
+
+// 图标类型：导入（箭头向下收入托架）/ 导出（箭头向上送出）/ 新建
+export enum IconKind {
+    icon-import,
+    icon-export,
+    icon-add,
+}
+
+// 图标绘制区：统一按 16x16 的局部坐标编写（与 Theme.icon-size 对应）。
+// 不使用 stroke，全部由填充矩形 + 填充三角形（Path）组成，避免不同渲染器的描边差异。
+component IconGlyph inherits Rectangle {
+    in property <IconKind> kind: IconKind.icon-add;
+    in property <color> color: Theme.text;
+
+    // 线宽与托架左右内缩
+    private property <length> bar: 1.8px;
+    private property <length> inset: 2px;
+
+    width: Theme.icon-size;
+    height: Theme.icon-size;
+    background: transparent;
+
+    // ---- 新建：十字 ----
+    if (root.kind == IconKind.icon-add) : Rectangle {
+        x: 0;
+        y: (root.height - root.bar) / 2;
+        width: root.width;
+        height: root.bar;
+        background: root.color;
+    }
+    if (root.kind == IconKind.icon-add) : Rectangle {
+        x: (root.width - root.bar) / 2;
+        y: 0;
+        width: root.bar;
+        height: root.height;
+        background: root.color;
+    }
+
+    // ---- 导入：向下的箭头 + 底部托架 ----
+    if (root.kind == IconKind.icon-import) : Rectangle {
+        x: (root.width - root.bar) / 2;
+        y: 0;
+        width: root.bar;
+        height: 7px;
+        background: root.color;
+    }
+    // Path 会把图形缩放进 width/height 边界，这里让包围盒与元素尺寸完全一致（缩放系数为 1）
+    if (root.kind == IconKind.icon-import) : Path {
+        x: 3.2px;
+        y: 6.6px;
+        width: 9.6px;
+        height: 4.8px;
+        commands: "M 8 11.4 L 3.2 6.6 L 12.8 6.6 Z";
+        fill: root.color;
+    }
+    if (root.kind == IconKind.icon-import) : Rectangle {
+        x: root.inset;
+        y: root.height - root.bar;
+        width: root.width - root.inset * 2;
+        height: root.bar;
+        background: root.color;
+    }
+
+    // ---- 导出：顶部托架 + 向上的箭头 ----
+    if (root.kind == IconKind.icon-export) : Rectangle {
+        x: root.inset;
+        y: 0;
+        width: root.width - root.inset * 2;
+        height: root.bar;
+        background: root.color;
+    }
+    // Path 会把图形缩放进 width/height 边界，这里让包围盒与元素尺寸完全一致（缩放系数为 1）
+    if (root.kind == IconKind.icon-export) : Path {
+        x: 3.2px;
+        y: 4.6px;
+        width: 9.6px;
+        height: 4.8px;
+        commands: "M 8 4.6 L 12.8 9.4 L 3.2 9.4 Z";
+        fill: root.color;
+    }
+    if (root.kind == IconKind.icon-export) : Rectangle {
+        x: (root.width - root.bar) / 2;
+        y: 9px;
+        width: root.bar;
+        height: 7px;
+        background: root.color;
+    }
+}
+
+// 图标按钮：34x34 圆角方块，底色 #2a2a2a，悬停 #333333。
+export component IconButton inherits Rectangle {
+    in property <IconKind> kind: IconKind.icon-add;
+    callback clicked();
+
+    background: touch.has-hover ? Theme.control-bg-hover : Theme.control-bg;
+    border-radius: Theme.radius-control;
+
+    min-width: Theme.icon-button-w;
+    max-width: Theme.icon-button-w;
+    min-height: Theme.control-h;
+    max-height: Theme.control-h;
+
+    animate background { duration: 120ms; }
+
+    IconGlyph {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        kind: root.kind;
+        color: Theme.text;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

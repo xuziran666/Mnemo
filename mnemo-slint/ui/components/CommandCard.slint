@@ -1,0 +1,134 @@
+import { Theme } from "../theme.slint";
+import { CommandItem, Strings } from "../state.slint";
+import { Badge } from "Badge.slint";
+import { Tag } from "Tag.slint";
+import { TextButton } from "TextButton.slint";
+
+// 命令卡片（设计图核心组件）：
+// - 常态：底色 #2a2a2a + 1px #3a3a3a 描边，圆角 8，内边距 12
+// - 悬停：描边变亮（border-hover）
+// - 选中：底色 #333333 + 1px #5b7cfa 描边
+// - 结构：Header（徽章 / 标题 / 4 个文字按钮）+ Body（代码或笔记预览）+ Footer（标签）
+export component CommandCard inherits Rectangle {
+    in property <CommandItem> item;
+    in property <bool> selected: false;
+
+    // 供上层 / Rust 侧绑定业务逻辑
+    callback card-clicked();
+    callback copy-clicked();
+    callback edit-clicked();
+    callback delete-clicked();
+
+    // 高度 = 内容自然高度 + 上下内边距。
+    // 显式绑定高度（而不是依赖隐式尺寸推导），供列表项计算卡片高度。
+    height: card-content.height + Theme.pad-card * 2;
+
+    background: root.selected ? Theme.card-bg-selected : Theme.card-bg;
+    border-width: 1px;
+    border-color: root.selected
+        ? Theme.accent
+        : (card-touch.has-hover ? Theme.border-hover : Theme.border);
+    border-radius: Theme.radius-card;
+
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
+
+    // 声明在最前 → 位于底层：点击卡片空白处触发 card-clicked，
+    // 正文与操作按钮在其上层，各自接收自己的点击。
+    card-touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.card-clicked(); }
+    }
+
+    card-content := VerticalLayout {
+        x: Theme.pad-card;
+        y: Theme.pad-card;
+        width: parent.width - Theme.pad-card * 2;
+        height: preferred-height;
+        spacing: Theme.gap-card;
+
+        // ---------- Header ----------
+        HorizontalLayout {
+            spacing: Theme.gap-card;
+
+            Badge {
+                text: root.item.kind == 2 ? Strings.badge-note : Strings.badge-code;
+                bg: root.item.kind == 2 ? Theme.badge-note-bg : Theme.badge-code-bg;
+            }
+
+            Text {
+                text: root.item.title;
+                color: Theme.text;
+                font-size: Theme.fs-title;
+                font-weight: 700;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+
+            HorizontalLayout {
+                spacing: Theme.gap-action;
+
+                TextButton {
+                    text: Strings.action-view;
+                    hover-color: Theme.hover-view;
+                    clicked => { root.card-clicked(); }
+                }
+                TextButton {
+                    text: Strings.action-copy;
+                    hover-color: Theme.hover-copy;
+                    clicked => { root.copy-clicked(); }
+                }
+                TextButton {
+                    text: Strings.action-edit;
+                    hover-color: Theme.hover-edit;
+                    clicked => { root.edit-clicked(); }
+                }
+                TextButton {
+                    text: Strings.action-delete;
+                    hover-color: Theme.hover-delete;
+                    clicked => { root.delete-clicked(); }
+                }
+            }
+        }
+
+        // ---------- Body ----------
+        // Snippet：等宽字体 + 代码高亮色，支持换行
+        if (root.item.kind != 2) : Text {
+            text: root.item.content;
+            color: Theme.code;
+            font-size: Theme.fs-body;
+            font-family: Theme.code-font-family;
+            wrap: word-wrap;
+        }
+        // Note：普通文本预览，最多 3 行后省略
+        if (root.item.kind == 2) : Text {
+            text: root.item.content;
+            color: Theme.text-muted;
+            font-size: Theme.fs-body;
+            wrap: word-wrap;
+            max-lines: 3;
+            overflow: elide;
+        }
+
+        // 备注：设计图未包含这一行，但数据模型有 note 字段（egui 版也会展示）。
+        // 如不需要可整块删除。
+        if (root.item.note != "") : Text {
+            text: root.item.note;
+            color: Theme.text-muted;
+            font-size: Theme.fs-chip;
+            wrap: word-wrap;
+            max-lines: 2;
+            overflow: elide;
+        }
+
+        // ---------- Footer：标签 ----------
+        if (root.item.tags.length > 0) : HorizontalLayout {
+            spacing: Theme.gap-chip;
+
+            for tag in root.item.tags : Tag {
+                text: tag;
+            }
+        }
+    }
+}
