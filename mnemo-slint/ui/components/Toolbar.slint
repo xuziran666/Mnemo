@@ -65,6 +65,7 @@ export component Toolbar inherits Rectangle {
         }
         IconButton {
             kind: IconKind.icon-close;
+            danger: true; // 关闭属于危险操作：悬停变红
             clicked => { root.close-clicked(); }
         }
     }

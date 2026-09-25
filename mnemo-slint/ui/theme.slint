@@ -29,6 +29,10 @@ export global Theme {
     out property <color> hover-edit: #e0a33c;       // Edit  -> 橙
     out property <color> hover-delete: #e05252;     // Delete-> 红
 
+    // 危险操作（窗口关闭等）的悬停底色：与 hover-delete 同色，
+    // 语义分开命名是为了以后能单独调整（例如删除按钮改成描边红、关闭按钮改成实心红）。
+    out property <color> danger-hover-bg: #e05252;
+
     // ---------- 圆角 ----------
     out property <length> radius-card: 8px;
     out property <length> radius-control: 8px;
