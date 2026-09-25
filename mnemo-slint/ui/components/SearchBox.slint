@@ -5,6 +5,8 @@ import { Strings } from "../state.slint";
 export component SearchBox inherits Rectangle {
     in-out property <string> text;
     in property <string> placeholder: Strings.search-placeholder;
+    // 是否聚焦：主窗口用它决定单键快捷键（如 s）是否让位给输入框
+    out property <bool> input-focused: input.has-focus;
     callback edited(string);
     callback accepted();
 
@@ -50,5 +52,10 @@ export component SearchBox inherits Rectangle {
         single-line: true;
         edited => { root.edited(root.text); }
         accepted => { root.accepted(); }
+    }
+
+    // 供快捷键 "s" 调用
+    public function focus-input() {
+        input.focus();
     }
 }

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use mnemo_core::models::Command;
+use mnemo_core::models::{Command, NewCommand};
 use mnemo_core::rusqlite::Connection;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
@@ -63,6 +63,59 @@ impl AppData {
             }
         }
     }
+
+    // ---------- 缓存查询（复制正文 / 编辑回填 / 删除确认 / 移动选中项）----------
+
+    pub fn find(&self, id: i32) -> Option<Command> {
+        self.commands
+            .borrow()
+            .iter()
+            .find(|command| command.id as i32 == id)
+            .cloned()
+    }
+
+    pub fn index_of(&self, id: i32) -> Option<usize> {
+        self.commands
+            .borrow()
+            .iter()
+            .position(|command| command.id as i32 == id)
+    }
+
+    // 当前列表的 id 序列（顺序与 State.commands 完全一致）。
+    pub fn ids(&self) -> Vec<i32> {
+        self.commands
+            .borrow()
+            .iter()
+            .map(|command| command.id as i32)
+            .collect()
+    }
+
+    // ---------- 写操作 ----------
+    // 失败统一返回 Err(String)：原始错误由调用方写 stderr，界面只显示本地化文案。
+
+    pub fn create(&self, input: NewCommand) -> Result<Command, String> {
+        mnemo_core::create(self.connection()?, input)
+    }
+
+    pub fn update(&self, id: i64, input: NewCommand) -> Result<Command, String> {
+        mnemo_core::update(self.connection()?, id, input)
+    }
+
+    pub fn delete(&self, id: i64) -> Result<(), String> {
+        mnemo_core::delete(self.connection()?, id)
+    }
+
+    fn connection(&self) -> Result<&Connection, String> {
+        self.conn
+            .as_ref()
+            .ok_or_else(|| "database not open".to_string())
+    }
+}
+
+// 按当前搜索关键词刷新列表（增删改之后调用，保证过滤条件不被丢掉）。
+pub fn refresh_current(ui: &MainWindow, data: &AppData) {
+    let query = ui.global::<State>().get_query();
+    refresh_list(ui, data, query.as_str());
 }
 
 // 查询并刷新 State.commands，同时修复选中项。

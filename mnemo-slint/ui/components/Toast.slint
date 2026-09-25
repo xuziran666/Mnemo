@@ -1,0 +1,29 @@
+import { Theme } from "../theme.slint";
+
+// 底部居中的轻提示。
+// - 铺满父级但不拦截鼠标：整块没有 TouchArea，点击会穿透到下面的内容（提示不应挡住操作）。
+// - 显示与隐藏都由 Rust 侧控制（State.toast-visible / State.toast-text），1.5s 后自动关闭。
+export component Toast inherits Rectangle {
+    in property <string> text;
+
+    background: transparent;
+
+    pill := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 24px;
+        width: label.preferred-width + Theme.pad-card * 2;
+        height: label.preferred-height + 12px;
+        background: Theme.toast-bg;
+        border-width: 1px;
+        border-color: Theme.border;
+        border-radius: Theme.radius-control;
+
+        label := Text {
+            x: Theme.pad-card;
+            y: 6px;
+            text: root.text;
+            color: Theme.text;
+            font-size: Theme.fs-body;
+        }
+    }
+}

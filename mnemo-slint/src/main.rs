@@ -1,18 +1,26 @@
-// Mnemo（Slint 版）入口。
-// 窗口行为（无边框 / 置顶 / 失焦隐藏 / 最小化 / Esc 隐藏）+ 系统托盘 + 数据层装配。
-// 查询（list / LIKE 过滤）已接入 mnemo-core；增删改、复制、导入导出、i18n 见后续步骤。
+// Mnemo（Slint 版）入口：窗口行为、系统托盘、数据层与业务回调的装配。
+// 分层：
+//   data.rs     —— SQLite 连接、查询缓存、CRUD 包装、列表模型刷新
+//   strings.rs  —— 把 i18n 文案写进 Slint 的 Strings / State / 托盘菜单
+//   i18n.rs     —— 语言资源（locales/*.json，构建期嵌入二进制）
+//   settings.rs —— 语言选择持久化（与旧版 egui 共用 settings.json）
+//   paths.rs    —— 数据目录（com.longanl.mnemo）
+//   ui/*.slint  —— 视图与弹层；键盘捕获在 .slint（FocusScope + KeyBinding），Esc 在本文件（winit 钩子）
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use mnemo_core::models::{NewCommand, KIND_SNIPPET};
 use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
 use slint::{ComponentHandle, SharedString};
 
 slint::include_modules!();
 
-// UI 侧模块：数据层（SQLite 绑定与列表刷新）/ 路径解析（复用 com.longanl.mnemo 目录）
 mod data;
+mod i18n;
 mod paths;
+mod settings;
+mod strings;
 
 // Slint 没有 monospace 通用族关键字，代码字体必须给具体族名，按平台选择。
 #[cfg(target_os = "windows")]
@@ -56,23 +64,31 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let flags = Rc::new(Cell::new(WindowFlags::new()));
 
+    // 语言：优先用 settings.json 里持久化的选择，没有则按系统 locale 推断
+    let lang = settings::load_lang().unwrap_or_else(i18n::Lang::from_system);
+    let i18n = Rc::new(RefCell::new(i18n::I18n::new(lang)));
+    // Toast 的"最后一次提示"令牌：连续提示时避免旧定时器把新提示提前关掉
+    let toast_token = Rc::new(Cell::new(0u32));
+
     let ui = MainWindow::new()?;
     apply_code_font(&ui);
-    install_callbacks(&ui);
+    strings::apply(&ui, &i18n.borrow());
 
     // 数据层：打开 commands.db（含建表/迁移）并做首次查询，把真实数据绑定给 State.commands
     let app_data = data::AppData::open();
     data::refresh_list(&ui, &app_data, "");
     install_data_bindings(&ui, &app_data);
+    install_business_callbacks(&ui, &app_data, &flags, &i18n, &toast_token);
+    install_placeholder_callbacks(&ui);
 
     install_window_controls(&ui, flags.clone());
     install_window_event_hook(&ui, flags.clone());
 
     // 托盘必须早于窗口显示：无边框窗口一旦被隐藏，托盘是唯一的唤回入口。
-    let tray = match Tray::new() {
+    let tray: Option<Rc<Tray>> = match Tray::new() {
         Ok(tray) => {
             install_tray(&tray, &ui, flags.clone());
-            Some(tray)
+            Some(Rc::new(tray))
         }
         Err(err) => {
             // 没有托盘 → 隐藏窗口后无法唤回。退化：禁用失焦隐藏，关闭/Esc 直接退出。
@@ -84,6 +100,10 @@ fn main() -> Result<(), slint::PlatformError> {
             None
         }
     };
+    if let Some(tray) = &tray {
+        strings::apply_tray(tray, &i18n.borrow());
+    }
+    install_language_binding(&ui, tray.clone(), i18n.clone());
 
     ui.show()?;
     if let Some(tray) = &tray {
@@ -116,16 +136,181 @@ fn install_data_bindings(ui: &MainWindow, app_data: &Rc<data::AppData>) {
     });
 }
 
-// 尚未接入业务的回调：只打印日志，用于验证 UI → Rust 的接线（替换见后续步骤）。
-fn install_callbacks(ui: &MainWindow) {
+// 尚未接入业务的回调：只打印日志（导入/导出需要 rfd 文件对话框；卡片单击进 Viewer 待做），
+// 保留日志是为了"点了没反应"时能立刻区分是接线断了还是功能未实现。
+fn install_placeholder_callbacks(ui: &MainWindow) {
     ui.on_card_activated(|id| eprintln!("[mnemo] card-activated id={id}"));
-    ui.on_copy_requested(|id| eprintln!("[mnemo] copy-requested id={id}"));
-    ui.on_edit_requested(|id| eprintln!("[mnemo] edit-requested id={id}"));
-    ui.on_delete_requested(|id| eprintln!("[mnemo] delete-requested id={id}"));
-    ui.on_import_clicked(|| eprintln!("[mnemo] import-clicked"));
-    ui.on_export_clicked(|| eprintln!("[mnemo] export-clicked"));
-    ui.on_new_clicked(|| eprintln!("[mnemo] new-clicked"));
-    ui.on_lang_selected(|code| eprintln!("[mnemo] lang-selected {code}"));
+    ui.on_import_clicked(|| eprintln!("[mnemo] import-clicked（待接入 rfd）"));
+    ui.on_export_clicked(|| eprintln!("[mnemo] export-clicked（待接入 rfd）"));
+}
+
+// ---------- 业务回调：复制 / 选中移动 / 增删改 ----------
+fn install_business_callbacks(
+    ui: &MainWindow,
+    app_data: &Rc<data::AppData>,
+    flags: &Rc<Cell<WindowFlags>>,
+    i18n: &Rc<RefCell<i18n::I18n>>,
+    toast_token: &Rc<Cell<u32>>,
+) {
+    // 复制：写入剪贴板成功后隐藏窗口（无边框小工具"用完即走"的行为）
+    {
+        let app_data = app_data.clone();
+        let flags = flags.clone();
+        let i18n = i18n.clone();
+        let token = toast_token.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_copy_requested(move |id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let Some(command) = app_data.find(id) else { return };
+            // 每次复制都新建 Clipboard 实例：短生命周期在 Windows 上更稳妥（写入后由系统接管数据）。
+            // 失败不能只打日志，必须给用户 Toast 反馈。
+            let copied = arboard::Clipboard::new()
+                .and_then(|mut clipboard| clipboard.set_text(command.content))
+                .map_err(|err| err.to_string());
+            match copied {
+                Ok(()) => hide_or_quit(&ui, &flags),
+                Err(err) => {
+                    eprintln!("[mnemo] 写入剪贴板失败：{err}");
+                    let message = i18n.borrow().t("toast.copyFailed");
+                    show_toast(&ui, &message, &token);
+                }
+            }
+        });
+    }
+
+    // ↑ / ↓：移动选中项
+    {
+        let app_data = app_data.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_select_move(move |delta| {
+            if let Some(ui) = ui_weak.upgrade() {
+                move_selection(&ui, &app_data, delta);
+            }
+        });
+    }
+
+    // 编辑：把该条填进编辑器（用列表缓存，不再查库）
+    {
+        let app_data = app_data.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_edit_requested(move |id| {
+            if let Some(ui) = ui_weak.upgrade() {
+                if let Some(command) = app_data.find(id) {
+                    open_editor(&ui, Some(&command));
+                }
+            }
+        });
+    }
+
+    // 新建：清空编辑器。已在编辑时忽略，避免 Ctrl+N 连按把用户已输入的内容清掉。
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_new_clicked(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                if !ui.global::<State>().get_editor_open() {
+                    open_editor(&ui, None);
+                }
+            }
+        });
+    }
+
+    // 删除：先弹二次确认（破坏性操作），点"取消"直接在 .slint 侧关闭弹层
+    {
+        let app_data = app_data.clone();
+        let i18n = i18n.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_delete_requested(move |id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let Some(command) = app_data.find(id) else { return };
+            let message = i18n
+                .borrow()
+                .t_args("confirm.delete", &[("title", command.title.as_str())]);
+            let state = ui.global::<State>();
+            state.set_confirm_message(message.into());
+            state.set_confirm_id(id);
+            state.set_confirm_open(true);
+        });
+    }
+
+    // 确认删除：写库 → 按当前搜索条件刷新 → Toast
+    {
+        let app_data = app_data.clone();
+        let i18n = i18n.clone();
+        let token = toast_token.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_confirm_ok(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let state = ui.global::<State>();
+            let id = state.get_confirm_id();
+            state.set_confirm_open(false);
+
+            match app_data.delete(id as i64) {
+                Ok(()) => {
+                    data::refresh_current(&ui, &app_data);
+                    let message = i18n.borrow().t("toast.deleted");
+                    show_toast(&ui, &message, &token);
+                }
+                Err(err) => {
+                    eprintln!("[mnemo] 删除失败：{err}");
+                    let message = i18n.borrow().t("toast.deleteFailed");
+                    show_toast(&ui, &message, &token);
+                }
+            }
+        });
+    }
+
+    // 保存：title 与 content 必填；不满足时只提示、不关弹层、不写库
+    {
+        let app_data = app_data.clone();
+        let i18n = i18n.clone();
+        let token = toast_token.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_editor_save(move || {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let state = ui.global::<State>();
+
+            let title = state.get_editor_title().trim().to_string();
+            let content = state.get_editor_content().trim().to_string();
+            if title.is_empty() || content.is_empty() {
+                let message = i18n.borrow().t("toast.invalid");
+                show_toast(&ui, &message, &token);
+                return;
+            }
+
+            let input = NewCommand {
+                title,
+                content,
+                note: trimmed_opt(&state.get_editor_note()),
+                tags: trimmed_opt(&state.get_editor_tags()),
+                kind: state.get_editor_kind() as i64,
+            };
+            let id = state.get_editor_id();
+            let saved = if id > 0 {
+                app_data.update(id as i64, input)
+            } else {
+                app_data.create(input)
+            };
+
+            match saved {
+                Ok(command) => {
+                    // 保持当前搜索条件刷新，并选中刚保存的条目
+                    data::refresh_current(&ui, &app_data);
+                    // 若保存的条目不满足当前过滤条件，则不强行选中（refresh 已修正过选中项）
+                    if app_data.find(command.id as i32).is_some() {
+                        state.set_selected_id(command.id as i32);
+                    }
+                    state.set_editor_open(false);
+                    let message = i18n.borrow().t("toast.saved");
+                    show_toast(&ui, &message, &token);
+                }
+                Err(err) => {
+                    eprintln!("[mnemo] 保存失败：{err}");
+                    let message = i18n.borrow().t("toast.saveFailed");
+                    show_toast(&ui, &message, &token);
+                }
+            }
+        });
+    }
 }
 
 // 窗口控制按钮（工具栏最右侧）：最小化到任务栏 / 关闭（= 隐藏到托盘，不退出进程）。
@@ -161,9 +346,12 @@ fn install_window_controls(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
 // 唯一的 winit 窗口事件钩子（Slint 只允许注册一个，原因见 WindowFlags 注释）：
 // 1) 失去焦点自动隐藏（armed 标志确保窗口至少获得过一次焦点，避免启动瞬间误判）
 // 2) 最小化过程中抑制上述隐藏，否则"最小化到任务栏"会变成"隐藏到托盘"
-// 3) Esc 隐藏窗口：在 Rust 侧拦截，不依赖 Slint 侧谁持有焦点，任何时候都生效
+// 3) Esc：弹层（编辑器/确认框）打开时只关弹层，否则隐藏窗口。放在 Rust 侧拦截，
+//    与 .slint 里的 FocusScope（↑/↓/Enter/Ctrl+N/s）分工明确、互不重叠。
 fn install_window_event_hook(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
     let armed = Rc::new(Cell::new(false));
+    // 判断弹层是否需要优先处理需要读 State，因此钩子里也持有窗口弱引用
+    let ui_weak = ui.as_weak();
     ui.window()
         .on_winit_window_event(move |window, event| {
             match event {
@@ -190,13 +378,20 @@ fn install_window_event_hook(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
                                 winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
                             );
                     if is_escape {
-                        // Esc：隐藏窗口，进程与托盘继续运行
-                        if flags.get().tray_ready {
-                            let _ = window.hide();
-                        } else {
-                            let _ = slint::quit_event_loop();
+                        // 弹层优先：编辑器 / 确认框打开时，Esc 只关弹层，不隐藏整个窗口
+                        let handled_by_overlay = ui_weak
+                            .upgrade()
+                            .map(|ui| close_top_overlay(&ui))
+                            .unwrap_or(false);
+                        if !handled_by_overlay {
+                            // 无弹层：隐藏窗口，进程与托盘继续运行
+                            if flags.get().tray_ready {
+                                let _ = window.hide();
+                            } else {
+                                let _ = slint::quit_event_loop();
+                            }
                         }
-                        // 已处理：不再传给 Slint，避免弹层等再处理一次
+                        // 已处理：不再传给 Slint
                         return EventResult::PreventDefault;
                     }
                 }
@@ -221,6 +416,124 @@ fn install_tray(tray: &Tray, ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
     tray.on_quit(|| {
         let _ = slint::quit_event_loop();
     });
+}
+
+// ---------- 辅助函数 ----------
+
+// ↑/↓ 移动选中项。
+//
+// 为什么下标计算放在 Rust 而不是 Slint：Slint 的 for 循环没有下标变量，选中态只能用 id 表示
+// （State.selected-id），"当前项的下标"只能在持有列表缓存的这一侧换算；否则 .slint 里要额外维护
+// 一份 selected-index，搜索过滤/增删之后极易与 id 失去同步。
+fn move_selection(ui: &MainWindow, app_data: &data::AppData, delta: i32) {
+    let state = ui.global::<State>();
+    let ids = app_data.ids();
+    if ids.is_empty() {
+        state.set_selected_id(0);
+        return;
+    }
+
+    let next = match app_data.index_of(state.get_selected_id()) {
+        Some(index) => (index as i32 + delta).clamp(0, ids.len() as i32 - 1) as usize,
+        // 当前没有选中（或选中项已被搜索过滤掉）：↓ 从第一条开始，↑ 从最后一条开始
+        None if delta > 0 => 0,
+        None => ids.len() - 1,
+    };
+    state.set_selected_id(ids[next]);
+}
+
+// 打开编辑器：Some = 编辑（回填字段），None = 新建（清空字段）。
+fn open_editor(ui: &MainWindow, command: Option<&mnemo_core::models::Command>) {
+    let state = ui.global::<State>();
+    match command {
+        Some(command) => {
+            state.set_editor_id(command.id as i32);
+            state.set_editor_kind(command.kind as i32);
+            state.set_editor_title(command.title.as_str().into());
+            state.set_editor_content(command.content.as_str().into());
+            state.set_editor_note(command.note.clone().unwrap_or_default().into());
+            state.set_editor_tags(command.tags.clone().unwrap_or_default().into());
+        }
+        None => {
+            state.set_editor_id(0);
+            state.set_editor_kind(KIND_SNIPPET as i32);
+            state.set_editor_title(SharedString::default());
+            state.set_editor_content(SharedString::default());
+            state.set_editor_note(SharedString::default());
+            state.set_editor_tags(SharedString::default());
+        }
+    }
+    state.set_editor_open(true);
+}
+
+// Esc 的"弹层优先"处理：返回 true 表示已被弹层消费（此时不隐藏窗口）。
+// 弹层状态都在 State 全局里，Rust 侧能直接判定，因此 Esc 仍然只需要一个入口。
+fn close_top_overlay(ui: &MainWindow) -> bool {
+    let state = ui.global::<State>();
+    if state.get_editor_open() {
+        state.set_editor_open(false);
+        true
+    } else if state.get_confirm_open() {
+        state.set_confirm_open(false);
+        true
+    } else {
+        false
+    }
+}
+
+// 底部 Toast：显示 1.5s 后自动关闭（时长与旧版 egui 一致）。
+// token 处理连续提示：旧定时器发现 token 已变就什么都不做，不会把新提示提前关掉。
+// 注意：成功后不弹"已复制"——窗口会立即隐藏，弹了也看不见；失败才需要提示。
+fn show_toast(ui: &MainWindow, text: &str, token: &Rc<Cell<u32>>) {
+    let state = ui.global::<State>();
+    state.set_toast_text(SharedString::from(text));
+    state.set_toast_visible(true);
+
+    let current = token.get().wrapping_add(1);
+    token.set(current);
+    let token = token.clone();
+    let ui_weak = ui.as_weak();
+    slint::Timer::single_shot(std::time::Duration::from_millis(1500), move || {
+        if token.get() == current {
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.global::<State>().set_toast_visible(false);
+            }
+        }
+    });
+}
+
+// 语言切换：更新 i18n → 重写界面与托盘文案 → 持久化到 settings.json。
+// 关掉语言下拉后菜单文案要立刻跟着变，所以托盘也要重新应用一次。
+fn install_language_binding(
+    ui: &MainWindow,
+    tray: Option<Rc<Tray>>,
+    i18n: Rc<RefCell<i18n::I18n>>,
+) {
+    let ui_weak = ui.as_weak();
+    ui.on_lang_selected(move |code| {
+        let Some(lang) = i18n::Lang::from_code(code.as_str()) else { return };
+        i18n.borrow_mut().set_lang(lang);
+        {
+            let i18n = i18n.borrow();
+            if let Some(ui) = ui_weak.upgrade() {
+                strings::apply(&ui, &i18n);
+            }
+            if let Some(tray) = &tray {
+                strings::apply_tray(tray, &i18n);
+            }
+        }
+        settings::save_lang(lang);
+    });
+}
+
+// 空字符串 → None（备注/标签留空时不写库，与旧版 egui 的行为一致）。
+fn trimmed_opt(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 // 唤回窗口：从"隐藏"与"最小化"两种状态都能正确恢复。

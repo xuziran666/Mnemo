@@ -1,0 +1,42 @@
+import { Theme } from "../theme.slint";
+
+// 实心按钮：用于弹层里的主操作与危险操作（保存 / 确认删除 / 取消）。
+// 三种外观：danger（红底）/ accent（强调蓝底）/ 默认（深灰底）。
+export component SolidButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> danger: false;
+    in property <bool> accent: false;
+    callback clicked();
+
+    // 实心底色上用白字，普通按钮用主文本色
+    private property <bool> solid: root.danger || root.accent;
+
+    background: root.danger
+        ? (touch.has-hover ? Theme.danger-bg-hover : Theme.danger-bg)
+        : (root.accent
+            ? (touch.has-hover ? Theme.accent-hover : Theme.accent)
+            : (touch.has-hover ? Theme.control-bg-hover : Theme.control-bg));
+    border-width: 1px;
+    border-color: root.danger ? Theme.danger-bg : (root.accent ? Theme.accent : Theme.border);
+    border-radius: Theme.radius-control;
+
+    min-width: label.preferred-width + 32px;
+    max-width: label.preferred-width + 32px;
+    min-height: Theme.control-h;
+    max-height: Theme.control-h;
+
+    animate background { duration: 120ms; }
+
+    label := Text {
+        text: root.text;
+        color: root.solid ? Theme.badge-text : Theme.text;
+        font-size: Theme.fs-control;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

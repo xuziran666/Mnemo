@@ -11,6 +11,9 @@ export component Toolbar inherits Rectangle {
     in property <string> lang-code: "en";
     in property <[LangOption]> langs;
 
+    // 供主窗口的键盘快捷键使用：搜索框是否聚焦 + 主动聚焦搜索框
+    out property <bool> search-focused: search-box.input-focused;
+
     callback query-edited(string);
     callback lang-selected(string);
     callback import-clicked();
@@ -32,7 +35,7 @@ export component Toolbar inherits Rectangle {
         spacing: Theme.gap-control;
 
         // 搜索框占满剩余宽度
-        SearchBox {
+        search-box := SearchBox {
             horizontal-stretch: 1;
             text <=> root.query;
             edited(q) => { root.query-edited(q); }
@@ -68,5 +71,9 @@ export component Toolbar inherits Rectangle {
             danger: true; // 关闭属于危险操作：悬停变红
             clicked => { root.close-clicked(); }
         }
+    }
+
+    public function focus-search() {
+        search-box.focus-input();
     }
 }

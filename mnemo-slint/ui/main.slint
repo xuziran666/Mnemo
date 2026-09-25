@@ -4,6 +4,9 @@ import { State, Strings } from "state.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Toolbar } from "components/Toolbar.slint";
 import { CommandCard } from "components/CommandCard.slint";
+import { EditorPanel } from "components/EditorPanel.slint";
+import { ConfirmDialog } from "components/ConfirmDialog.slint";
+import { Toast } from "components/Toast.slint";
 // 托盘组件：此处导入是为了让 build.rs 在同一次编译中一并生成 Tray（SystemTrayIcon 根组件）。
 import { Tray } from "tray.slint";
 
@@ -31,6 +34,11 @@ export component MainWindow inherits Window {
     // 搜索关键词变化（每次输入触发）→ Rust 侧查询 mnemo-core 并刷新列表
     callback query-changed(string);
 
+    // 键盘导航与弹层（实现见 src/main.rs）
+    callback select-move(int); // ↑/↓ 移动选中项：+1 / -1
+    callback editor-save();    // 保存（Rust 侧校验 title/content 必填后写库）
+    callback confirm-ok();     // 确认删除（取消/关闭直接在 .slint 侧改 State，不必回 Rust）
+
     // 无边框窗口的系统级操作（Rust 侧实现）：
     // 最小化到任务栏 / 隐藏到托盘（关闭 ≠ 退出进程，退出走托盘菜单）
     callback minimize-requested();
@@ -42,13 +50,17 @@ export component MainWindow inherits Window {
     preferred-width: 900px;
     preferred-height: 650px;
     min-width: 500px;
-    min-height: 400px;
+    // 最小高度要容纳新建/编辑浮层（约 424px + 上下留白），否则缩到最小尺寸时"保存"按钮会跑到窗口外
+    min-height: 500px;
     background: Theme.bg;
     icon: @image-url("../assets/icons/icon.png");
 
     no-frame: true;
     always-on-top: true;
     resize-border-width: 6px;
+
+    // 初始焦点交给键盘捕获作用域：启动后不点任何控件也能直接用快捷键
+    forward-focus: content-scope;
 
     // 无边框窗口的拖动区域：只覆盖顶部工具栏那一条空白背景。
     // 层级规则：声明在内容之前 → 位于底层。命中测试按"后面的兄弟元素在上"进行，
@@ -61,72 +73,185 @@ export component MainWindow inherits Window {
         height: Theme.pad-window + Theme.control-h;
     }
 
-    VerticalLayout {
+    // ---------- 键盘捕获 ----------
+    // FocusScope 必须包住整个内容树：它只在"自身有焦点"或"包裹着有焦点的子元素"时才会收到按键，
+    // 因此不能用一个独立的小元素来当键盘作用域。初始焦点由上面的 forward-focus 指定。
+    // 键名依据 i-slint-common-1.18.1/key_codes.rs：DownArrow / UpArrow / Return（不是 Enter）、字母必须大写。
+    content-scope := FocusScope {
+        width: 100%;
+        height: 100%;
+
+        // ↑/↓：移动选中项。下标计算放在 Rust 侧：Slint 的 for 循环拿不到下标，
+        // 选中态只能用 id 表示，再由持有列表缓存的一侧换算下标（见 main.rs 的 move_selection）。
+        KeyBinding {
+            keys: @keys(DownArrow);
+            enabled: !toolbar.search-focused;
+            activated => { root.select-move(1); }
+        }
+        KeyBinding {
+            keys: @keys(UpArrow);
+            enabled: !toolbar.search-focused;
+            activated => { root.select-move(-1); }
+        }
+        // Enter：复制选中项并关窗（与卡片上的 Copy 按钮走同一条路径）
+        KeyBinding {
+            keys: @keys(Return);
+            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            activated => { root.copy-requested(State.selected-id); }
+        }
+        // Ctrl+N：新建（Windows/Linux 用 Control；macOS 的 Command 对应 Meta）
+        KeyBinding {
+            keys: @keys(Control + N);
+            activated => { root.new-clicked(); }
+        }
+        // s：聚焦搜索框。搜索框已聚焦时字母键会被 TextInput 消费，这里再加 enabled 双保险。
+        KeyBinding {
+            keys: @keys(S);
+            enabled: !toolbar.search-focused;
+            activated => { toolbar.focus-search(); }
+        }
+
+        VerticalLayout {
+            x: 0;
+            y: 0;
+            width: 100%;
+            height: 100%;
+            padding: Theme.pad-window;
+            spacing: Theme.gap-card;
+
+            toolbar := Toolbar {
+                query <=> State.query;
+                lang-label: State.lang-label;
+                lang-code: State.lang-code;
+                langs: State.langs;
+
+                query-edited(q) => {
+                    // 写入 State（保持输入框内容）+ 转给 Rust 侧查询；本地 SQLite + LIKE 足够快，暂不做防抖
+                    State.query = q;
+                    root.query-changed(q);
+                }
+                lang-selected(code) => {
+                    // 切换语言：Rust 侧会重写 Strings / 托盘文案并持久化 settings.json
+                    root.lang-selected(code);
+                }
+                import-clicked => { root.import-clicked(); }
+                export-clicked => { root.export-clicked(); }
+                new-clicked => { root.new-clicked(); }
+                minimize-clicked => { root.minimize-requested(); }
+                close-clicked => { root.hide-requested(); }
+            }
+
+            // ---------- 命令卡片列表 ----------
+            if (State.commands.length > 0) : card-scroll := ScrollView {
+                vertical-stretch: 1;
+
+                // 用 VerticalLayout + spacing 控制卡片间距。
+                // 宽度必须显式跟随可视宽度：否则 ScrollView 的 content-width 会退化成内容最小宽度，卡片会变窄。
+                VerticalLayout {
+                    width: card-scroll.visible-width;
+                    spacing: Theme.gap-card;
+                    // 滚动内容的内边距（窗口本身已有 Theme.pad-window 外边距，这里只留与滚动条的呼吸空间）
+                    padding: Theme.gap-card;
+
+                    // 直接在 for 循环中渲染 CommandCard（布局会负责拉伸宽度，不要再写 width）
+                    for item in State.commands : CommandCard {
+                        item: item;
+                        selected: State.selected-id == item.id;
+
+                        card-clicked => {
+                            State.selected-id = item.id;
+                            root.card-activated(item.id);
+                        }
+                        copy-clicked => { root.copy-requested(item.id); }
+                        edit-clicked => { root.edit-requested(item.id); }
+                        delete-clicked => { root.delete-requested(item.id); }
+
+                        // 卡片被选中时上报自身位置，这里调整滚动偏移让它进入可视区。
+                        // 必须用 content-y：viewport-y 在 1.18 已标记 @deprecated（用它会出弃用警告）。
+                        // 两种情况都要夹取到 [0, 内容高度-可视高度]：内容不足一屏时后者可能为负。
+                        scroll-requested(y, h) => {
+                            if (y < card-scroll.content-y) {
+                                card-scroll.content-y = max(0px, y - Theme.gap-card);
+                            } else if (y + h > card-scroll.content-y + card-scroll.height) {
+                                card-scroll.content-y = max(
+                                    0px,
+                                    min(
+                                        card-scroll.content-height - card-scroll.height,
+                                        y + h - card-scroll.height + Theme.gap-card,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---------- 空态 ----------
+            if (State.commands.length == 0) : Text {
+                vertical-stretch: 1;
+                text: Strings.empty;
+                color: Theme.text-muted;
+                font-size: Theme.fs-body;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // ---------- 弹层（声明在内容之后 → 位于最上层）----------
+    // 层级与命中：遮罩是带 TouchArea 的全窗口 Rectangle，它吃掉点击，
+    // 既不会穿透到下面的卡片，也不会落到更下层的 WindowMoveArea（弹层打开时不会误拖窗口）。
+    // 点击遮罩不关闭弹层：避免误点丢失正在编辑的内容，"取消 / 保存"才是关闭入口。
+    if (State.editor-open) : Rectangle {
         x: 0;
         y: 0;
         width: 100%;
         height: 100%;
-        padding: Theme.pad-window;
-        spacing: Theme.gap-card;
+        background: Theme.overlay-bg;
 
-        Toolbar {
-            query <=> State.query;
-            lang-label: State.lang-label;
-            lang-code: State.lang-code;
-            langs: State.langs;
-
-            query-edited(q) => {
-                // 写入 State（保持输入框内容）+ 转给 Rust 侧查询；本地 SQLite + LIKE 足够快，暂不做防抖
-                State.query = q;
-                root.query-changed(q);
-            }
-            lang-selected(code) => {
-                State.lang-code = code;
-                root.lang-selected(code);
-            }
-            import-clicked => { root.import-clicked(); }
-            export-clicked => { root.export-clicked(); }
-            new-clicked => { root.new-clicked(); }
-            minimize-clicked => { root.minimize-requested(); }
-            close-clicked => { root.hide-requested(); }
+        TouchArea {
+            x: 0;
+            y: 0;
+            width: 100%;
+            height: 100%;
         }
 
-        // ---------- 命令卡片列表 ----------
-        if (State.commands.length > 0) : card-scroll := ScrollView {
-            vertical-stretch: 1;
+        EditorPanel {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            save => { root.editor-save(); }
+            cancel => { State.editor-open = false; }
+        }
+    }
 
-            // 用 VerticalLayout + spacing 控制卡片间距。
-            // 宽度必须显式跟随可视宽度：否则 ScrollView 的 content-width 会退化成内容最小宽度，卡片会变窄。
-            VerticalLayout {
-                width: card-scroll.visible-width;
-                spacing: Theme.gap-card;
-                // 滚动内容的内边距（窗口本身已有 Theme.pad-window 外边距，这里只留与滚动条的呼吸空间）
-                padding: Theme.gap-card;
+    if (State.confirm-open) : Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        background: Theme.overlay-bg;
 
-                // 直接在 for 循环中渲染 CommandCard（布局会负责拉伸宽度，不要再写 width）
-                for item in State.commands : CommandCard {
-                    item: item;
-                    selected: State.selected-id == item.id;
-
-                    card-clicked => {
-                        State.selected-id = item.id;
-                        root.card-activated(item.id);
-                    }
-                    copy-clicked => { root.copy-requested(item.id); }
-                    edit-clicked => { root.edit-requested(item.id); }
-                    delete-clicked => { root.delete-requested(item.id); }
-                }
-            }
+        TouchArea {
+            x: 0;
+            y: 0;
+            width: 100%;
+            height: 100%;
         }
 
-        // ---------- 空态 ----------
-        if (State.commands.length == 0) : Text {
-            vertical-stretch: 1;
-            text: Strings.empty;
-            color: Theme.text-muted;
-            font-size: Theme.fs-body;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+        ConfirmDialog {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            confirmed => { root.confirm-ok(); }
+            cancelled => { State.confirm-open = false; }
         }
+    }
+
+    // 提示层：铺满窗口但不拦截鼠标（Toast 内部没有 TouchArea），放在最上层以免被弹层遮住。
+    if (State.toast-visible) : Toast {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        text: State.toast-text;
     }
 }

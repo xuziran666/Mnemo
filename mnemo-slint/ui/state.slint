@@ -35,6 +35,21 @@ export global Strings {
     in-out property <string> action-delete: "Delete";
 
     in-out property <string> empty: "No commands found";
+
+    // 编辑器（新建 / 编辑弹层）
+    in-out property <string> editor-new: "New command";
+    in-out property <string> editor-edit: "Edit command";
+    in-out property <string> editor-kind-snippet: "Snippet";
+    in-out property <string> editor-kind-note: "Note";
+    in-out property <string> editor-title-placeholder: "Title";
+    in-out property <string> editor-content-placeholder: "Content";
+    in-out property <string> editor-note-placeholder: "Note (optional)";
+    in-out property <string> editor-tags-placeholder: "Tags (comma separated, optional)";
+    in-out property <string> editor-cancel: "Cancel";
+    in-out property <string> editor-save: "Save";
+
+    // 删除确认框
+    in-out property <string> confirm-title: "Delete";
 }
 
 // 界面状态（Rust 侧可通过 ui.global::<State>() 读写）。
@@ -56,4 +71,25 @@ export global State {
     ];
     in-out property <string> lang-code: "en";
     in-out property <string> lang-label: "English";
+
+    // ---------- 编辑器（窗口内浮层）----------
+    // 新建时为 0；编辑时为该条目的 id。字段值由 Rust 侧写入，保存时由 Rust 读取。
+    in-out property <bool> editor-open: false;
+    in-out property <int> editor-id: 0;
+    in-out property <int> editor-kind: 1; // 1 = Snippet，2 = Note
+    in-out property <string> editor-title: "";
+    in-out property <string> editor-content: "";
+    in-out property <string> editor-note: "";
+    in-out property <string> editor-tags: "";
+
+    // ---------- 删除二次确认 ----------
+    // message 由 Rust 侧用 confirm.delete + {{title}} 生成，避免在 .slint 里做插值。
+    in-out property <bool> confirm-open: false;
+    in-out property <int> confirm-id: 0;
+    in-out property <string> confirm-message: "";
+
+    // ---------- 底部提示 ----------
+    // 显示/隐藏由 Rust 侧控制（1.5s 后自动置 false），文案来自 i18n。
+    in-out property <bool> toast-visible: false;
+    in-out property <string> toast-text: "";
 }

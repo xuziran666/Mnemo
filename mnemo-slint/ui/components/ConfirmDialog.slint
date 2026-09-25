@@ -1,0 +1,54 @@
+import { Theme } from "../theme.slint";
+import { State, Strings } from "../state.slint";
+import { SolidButton } from "SolidButton.slint";
+
+// 删除二次确认。窗口内浮层（与 EditorPanel 同一套定位方式），
+// 文案由 Rust 侧用 confirm.delete + {{title}} 生成后写入 State.confirm-message。
+export component ConfirmDialog inherits Rectangle {
+    callback confirmed();
+    callback cancelled();
+
+    width: 380px;
+    height: content.height + Theme.pad-window * 2;
+    background: Theme.panel-bg;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: Theme.radius-card;
+
+    content := VerticalLayout {
+        x: Theme.pad-window;
+        y: Theme.pad-window;
+        width: parent.width - Theme.pad-window * 2;
+        height: self.preferred-height;
+        spacing: Theme.gap-action;
+
+        Text {
+            text: Strings.confirm-title;
+            color: Theme.text;
+            font-size: Theme.fs-title;
+            font-weight: 700;
+        }
+
+        Text {
+            text: State.confirm-message;
+            color: Theme.text-muted;
+            font-size: Theme.fs-body;
+            wrap: word-wrap;
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            spacing: Theme.gap-control;
+
+            SolidButton {
+                text: Strings.editor-cancel;
+                clicked => { root.cancelled(); }
+            }
+            SolidButton {
+                text: Strings.action-delete;
+                danger: true;
+                clicked => { root.confirmed(); }
+            }
+        }
+    }
+}

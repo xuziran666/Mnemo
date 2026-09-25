@@ -1,0 +1,173 @@
+import { Theme } from "../theme.slint";
+import { State, Strings } from "../state.slint";
+import { SolidButton } from "SolidButton.slint";
+
+// 类型选择按钮（Snippet / Note）：选中时用强调色实底。
+component KindChip inherits Rectangle {
+    in property <string> text;
+    in property <bool> checked: false;
+    callback clicked();
+
+    background: root.checked ? Theme.accent : Theme.control-bg;
+    border-width: 1px;
+    border-color: root.checked ? Theme.accent : Theme.border;
+    border-radius: Theme.radius-chip;
+
+    min-width: label.preferred-width + 24px;
+    max-width: label.preferred-width + 24px;
+    min-height: label.preferred-height + 10px;
+    max-height: label.preferred-height + 10px;
+
+    label := Text {
+        text: root.text;
+        color: root.checked ? Theme.badge-text : Theme.text-muted;
+        font-size: Theme.fs-chip;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// 表单输入框：深色底 + 1px 描边（聚焦变强调色），支持单行与多行。
+component FormField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> multiline: false;
+    in property <length> field-height: Theme.control-h;
+
+    // 在布局中作为固定高度 item 使用
+    min-height: root.field-height;
+    max-height: root.field-height;
+
+    background: Theme.control-bg;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.border;
+    border-radius: Theme.radius-control;
+
+    animate border-color { duration: 120ms; }
+
+    // 点击内边距区域也能聚焦输入框（声明在最前 → 位于底层）
+    pad-touch := TouchArea {
+        mouse-cursor: MouseCursor.text;
+        clicked => { input.focus(); }
+    }
+
+    // Slint 的 TextInput 没有 placeholder，内容为空时叠一层占位文本
+    if (root.text == "") : Text {
+        x: 10px;
+        y: root.multiline ? 8px : 0;
+        width: parent.width - 20px;
+        height: root.multiline ? parent.height - 16px : parent.height;
+        text: root.placeholder;
+        color: Theme.text-muted;
+        font-size: Theme.fs-body;
+        wrap: word-wrap;
+        horizontal-alignment: left;
+        vertical-alignment: root.multiline ? top : center;
+    }
+
+    input := TextInput {
+        x: 10px;
+        y: root.multiline ? 8px : 0;
+        width: parent.width - 20px;
+        height: root.multiline ? parent.height - 16px : parent.height;
+        text <=> root.text;
+        color: Theme.text;
+        font-size: Theme.fs-body;
+        horizontal-alignment: left;
+        vertical-alignment: root.multiline ? top : center;
+        single-line: !root.multiline;
+        wrap: word-wrap;
+    }
+
+    public function focus-input() {
+        input.focus();
+    }
+}
+
+// 新建 / 编辑表单。面板尺寸自适应内容，居中定位交给 main.slint（窗口内浮层）。
+// 字段直接双向绑定 State.editor-*，保存逻辑在 Rust 侧（校验必填 + 写库 + 刷新列表）。
+export component EditorPanel inherits Rectangle {
+    callback save();
+    callback cancel();
+
+    width: 520px;
+    // 高度 = 内容自然高度 + 上下内边距（content 是布局，只读取 preferred-height）
+    height: content.height + Theme.pad-window * 2;
+    background: Theme.panel-bg;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: Theme.radius-card;
+
+    content := VerticalLayout {
+        x: Theme.pad-window;
+        y: Theme.pad-window;
+        width: parent.width - Theme.pad-window * 2;
+        height: self.preferred-height;
+        spacing: Theme.gap-action;
+
+        Text {
+            text: State.editor-id == 0 ? Strings.editor-new : Strings.editor-edit;
+            color: Theme.text;
+            font-size: Theme.fs-title;
+            font-weight: 700;
+        }
+
+        HorizontalLayout {
+            spacing: Theme.gap-chip;
+
+            KindChip {
+                text: Strings.editor-kind-snippet;
+                checked: State.editor-kind != 2;
+                clicked => { State.editor-kind = 1; }
+            }
+            KindChip {
+                text: Strings.editor-kind-note;
+                checked: State.editor-kind == 2;
+                clicked => { State.editor-kind = 2; }
+            }
+        }
+
+        title-field := FormField {
+            placeholder: Strings.editor-title-placeholder;
+            text <=> State.editor-title;
+        }
+        FormField {
+            placeholder: Strings.editor-content-placeholder;
+            text <=> State.editor-content;
+            multiline: true;
+            field-height: 140px;
+        }
+        FormField {
+            placeholder: Strings.editor-note-placeholder;
+            text <=> State.editor-note;
+        }
+        FormField {
+            placeholder: Strings.editor-tags-placeholder;
+            text <=> State.editor-tags;
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            spacing: Theme.gap-control;
+
+            SolidButton {
+                text: Strings.editor-cancel;
+                clicked => { root.cancel(); }
+            }
+            SolidButton {
+                text: Strings.editor-save;
+                accent: true;
+                clicked => { root.save(); }
+            }
+        }
+    }
+
+    // 打开时把焦点放到标题输入框。
+    // 面板随 editor-open 一起创建/销毁，因此每次打开 init 都会触发（不需要额外通知机制）。
+    init => { title-field.focus-input(); }
+}
