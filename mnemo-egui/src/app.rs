@@ -25,6 +25,22 @@ enum UiAction {
     Delete,
 }
 
+// 界面主题：日间 / 夜间，与 egui 的 Theme 一一对应并持久化。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Theme {
+    Light,
+    Dark,
+}
+
+impl Theme {
+    fn code(self) -> &'static str {
+        match self {
+            Theme::Light => "light",
+            Theme::Dark => "dark",
+        }
+    }
+}
+
 // 编辑器缓存字段，独立于 Command，便于在编辑期间自由修改。
 #[derive(Default)]
 struct EditorState {
@@ -46,6 +62,7 @@ pub struct MnemoApp {
     // 键盘是否处于“列表激活”状态（由搜索框按 Enter 进入）。
     list_active: bool,
     view: View,
+    theme: Theme,
 
     editor: EditorState,
     editor_from_viewer: bool,
@@ -69,7 +86,15 @@ pub struct MnemoApp {
 impl MnemoApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.set_fonts(install_fonts());
-        let lang = load_settings().unwrap_or_else(Lang::from_system);
+        // 首次运行没有设置文件时：语言按系统推断，主题跟随系统当前主题。
+        let (lang, theme) = load_settings().unwrap_or_else(|| {
+            let theme = match cc.egui_ctx.theme() {
+                egui::Theme::Dark => Theme::Dark,
+                egui::Theme::Light => Theme::Light,
+            };
+            (Lang::from_system(), theme)
+        });
+        apply_theme(&cc.egui_ctx, theme);
         let mut app = Self {
             db: open_database(),
             i18n: I18n::new(lang),
@@ -78,6 +103,7 @@ impl MnemoApp {
             selected: None,
             list_active: false,
             view: View::List,
+            theme,
             editor: EditorState::default(),
             editor_from_viewer: false,
             editor_focus_pending: false,
@@ -249,7 +275,16 @@ impl MnemoApp {
             Lang::Zh => Lang::En,
         };
         self.i18n.set_lang(next);
-        save_settings(next);
+        save_settings(next, self.theme);
+    }
+
+    fn toggle_theme(&mut self, ctx: &egui::Context) {
+        self.theme = match self.theme {
+            Theme::Light => Theme::Dark,
+            Theme::Dark => Theme::Light,
+        };
+        apply_theme(ctx, self.theme);
+        save_settings(self.i18n.lang(), self.theme);
     }
 
     fn do_export(&mut self) {
@@ -372,8 +407,19 @@ impl MnemoApp {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 let hint = self.i18n.t("search.placeholder");
-                let button_width = 4.0 * 32.0 + ui.spacing().item_spacing.x * 5.0;
+                let button_width = 5.0 * 32.0 + ui.spacing().item_spacing.x * 6.0;
                 let width = (ui.available_width() - button_width).max(120.0);
+
+                // 左侧：语言切换
+                if ui
+                    .button(self.i18n.t("lang.button"))
+                    .on_hover_text(self.i18n.t("lang.title"))
+                    .clicked()
+                {
+                    self.toggle_lang();
+                }
+
+                // 中间：搜索框
                 let response = ui.add_sized(
                     [width, 26.0],
                     egui::TextEdit::singleline(&mut self.query).hint_text(hint),
@@ -388,12 +434,13 @@ impl MnemoApp {
                     self.focused_once = true;
                 }
 
-                if ui
-                    .button(self.i18n.t("lang.button"))
-                    .on_hover_text(self.i18n.t("lang.title"))
-                    .clicked()
-                {
-                    self.toggle_lang();
+                // 搜索框右侧：主题切换
+                let (theme_icon, theme_tip) = match self.theme {
+                    Theme::Light => ("🌙", self.i18n.t("theme.toDark")),
+                    Theme::Dark => ("☀", self.i18n.t("theme.toLight")),
+                };
+                if ui.button(theme_icon).on_hover_text(theme_tip).clicked() {
+                    self.toggle_theme(ui.ctx());
                 }
                 if ui
                     .button("⇩")
@@ -938,22 +985,34 @@ fn settings_path() -> Option<std::path::PathBuf> {
     paths::app_data_dir().map(|dir| dir.join("settings.json"))
 }
 
-fn load_settings() -> Option<Lang> {
-    let text = std::fs::read_to_string(settings_path()?).ok()?;
-    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
-    match value.get("lang")?.as_str()? {
-        "zh" => Some(Lang::Zh),
-        "en" => Some(Lang::En),
-        _ => None,
-    }
+fn apply_theme(ctx: &egui::Context, theme: Theme) {
+    ctx.set_theme(match theme {
+        Theme::Light => egui::Theme::Light,
+        Theme::Dark => egui::Theme::Dark,
+    });
 }
 
-fn save_settings(lang: Lang) {
+fn load_settings() -> Option<(Lang, Theme)> {
+    let text = std::fs::read_to_string(settings_path()?).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let lang = match value.get("lang")?.as_str()? {
+        "zh" => Lang::Zh,
+        "en" => Lang::En,
+        _ => return None,
+    };
+    let theme = match value.get("theme").and_then(|v| v.as_str()) {
+        Some("dark") => Theme::Dark,
+        _ => Theme::Light,
+    };
+    Some((lang, theme))
+}
+
+fn save_settings(lang: Lang, theme: Theme) {
     if let Some(path) = settings_path() {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        let value = serde_json::json!({ "lang": lang.code() });
+        let value = serde_json::json!({ "lang": lang.code(), "theme": theme.code() });
         let _ = std::fs::write(path, value.to_string());
     }
 }

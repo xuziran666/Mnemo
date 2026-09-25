@@ -15,6 +15,7 @@
 - **Keyboard-first** — `s` to search, `↑`/`↓` to navigate, `Enter` on a snippet copies it, `Enter` on a note opens the viewer, `r` to edit, `Ctrl+N`/`Cmd+N` to add.
 - **Copy & close** — Copying a command puts it on your clipboard and closes the window instantly, so your terminal workflow is never interrupted.
 - **Organized** — Each command can carry a title, note, and tags for easy management.
+- **Light & dark theme** — Toggle between light and dark mode; your choice is remembered.
 - **Viewer mode** — Press `Enter` to view a note as plain text (read-only); press `Enter` in the viewer to switch to editing in place, `Ctrl+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed).
 - **Pure Rust** — Native desktop UI built with [`egui`](https://github.com/emilk/egui); no web runtime, no Node.js.
 

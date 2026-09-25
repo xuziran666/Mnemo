@@ -9,6 +9,10 @@
     "button": "中文",
     "title": "Switch language"
   },
+  "theme": {
+    "toDark": "Dark mode",
+    "toLight": "Light mode"
+  },
   "empty": {
     "noCommands": "No commands found"
   },

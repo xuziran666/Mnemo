@@ -9,6 +9,10 @@
     "button": "EN",
     "title": "切换语言"
   },
+  "theme": {
+    "toDark": "夜间模式",
+    "toLight": "日间模式"
+  },
   "empty": {
     "noCommands": "没有找到命令"
   },
