@@ -1,0 +1,17 @@
+[package]
+name = "mnemo-egui"
+version = "0.3.4"
+edition = "2021"
+description = "Mnemo - a local command manager (pure Rust / egui)"
+authors = ["xuziran666"]
+license = "MIT"
+
+[[bin]]
+name = "mnemo"
+path = "src/main.rs"
+
+[dependencies]
+# GUI 框架：立即模式，替代 Tauri + React
+eframe = "0.36"
+# 跨平台应用数据目录，用于复用 Tauri 的 commands.db 路径
+dirs = "7"
