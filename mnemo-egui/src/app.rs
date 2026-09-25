@@ -410,14 +410,6 @@ impl MnemoApp {
                 let button_width = 5.0 * 32.0 + ui.spacing().item_spacing.x * 6.0;
                 let width = (ui.available_width() - button_width).max(120.0);
 
-                // 左侧：语言切换
-                if ui
-                    .button(self.i18n.t("lang.button"))
-                    .on_hover_text(self.i18n.t("lang.title"))
-                    .clicked()
-                {
-                    self.toggle_lang();
-                }
 
                 // 中间：搜索框
                 let response = ui.add_sized(
@@ -441,6 +433,14 @@ impl MnemoApp {
                 };
                 if ui.button(theme_icon).on_hover_text(theme_tip).clicked() {
                     self.toggle_theme(ui.ctx());
+                }
+                // 左侧：语言切换
+                if ui
+                    .button(self.i18n.t("lang.button"))
+                    .on_hover_text(self.i18n.t("lang.title"))
+                    .clicked()
+                {
+                    self.toggle_lang();
                 }
                 if ui
                     .button("⇩")
