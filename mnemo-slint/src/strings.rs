@@ -15,6 +15,8 @@ pub fn apply(ui: &MainWindow, i18n: &I18n) {
     // 搜索与工具栏
     strings.set_search_placeholder(i18n.t("search.placeholder").into());
     strings.set_lang_title(i18n.t("lang.title").into());
+    // 语言按钮显示"可切换到的语言"（英文界面显示"中文"，中文界面显示"EN"）
+    strings.set_lang_button(i18n.t("lang.button").into());
     strings.set_io_import(i18n.t("io.import").into());
     strings.set_io_export(i18n.t("io.export").into());
     strings.set_add_title(i18n.t("add.title").into());

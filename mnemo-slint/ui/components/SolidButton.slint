@@ -29,7 +29,8 @@ export component SolidButton inherits Rectangle {
 
     label := Text {
         text: root.text;
-        color: root.solid ? Theme.badge-text : Theme.text;
+        // 实心底色上用白字（on-solid-text 两套主题都是白色），普通按钮用主文本色
+        color: root.solid ? Theme.on-solid-text : Theme.text;
         font-size: Theme.fs-control;
         horizontal-alignment: center;
         vertical-alignment: center;

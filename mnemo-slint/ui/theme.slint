@@ -1,45 +1,58 @@
 // 全局设计 token（Theme 单例）。
-// 色值来源：docs/screenshots/image.png 设计图；标注“自拟”的为设计图未给出、按规范描述推导的值。
+// 两套配色：暗色（来自设计图 docs/screenshots/image.png）与亮色（按需求重新校准对比度）。
+// 关键机制：所有颜色都是基于 is-dark 的条件绑定 —— Rust 侧只切换 is-dark，
+// Slint 的绑定系统会让整棵界面树自动重算并重绘，无需逐控件刷新。
 // 说明：Slint 的 global 只能包含属性/回调/函数，不能包含元素，因此这里全部为 out property。
 export global Theme {
+    // ---------- 主题状态 ----------
+    // 唯一状态源：Rust 侧 ui.global::<Theme>().set_is_dark(..) 切换，并持久化到 settings.json
+    in-out property <bool> is-dark: true;
+
     // ---------- 背景与描边 ----------
-    out property <color> bg: #1e1e1e;               // 窗口背景
-    out property <color> card-bg: #2a2a2a;          // 卡片常态底色
-    out property <color> card-bg-selected: #333333; // 卡片选中底色
-    out property <color> control-bg: #2a2a2a;       // 搜索框/下拉/图标按钮底色
-    out property <color> control-bg-hover: #333333; // 图标按钮悬停底色
-    out property <color> border: #3a3a3a;           // 常态描边
-    out property <color> border-hover: #4a4a4a;     // 自拟：规范仅写“悬停时边框稍微变亮”
-    out property <color> accent: #5b7cfa;           // 强调色：选中描边
+    // 亮色说明：主背景不用纯白（#f0f0f0 更柔和），卡片用纯白 + #dcdcdc 描边形成微弱对比。
+    out property <color> bg: is-dark ? #1e1e1e : #f0f0f0;               // 窗口背景
+    out property <color> card-bg: is-dark ? #2a2a2a : #ffffff;          // 卡片常态底色
+    out property <color> card-bg-selected: is-dark ? #333333 : #e9edfb; // 卡片选中底色（亮色用淡蓝）
+    out property <color> control-bg: is-dark ? #2a2a2a : #ffffff;       // 搜索框/按钮/输入框底色
+    out property <color> control-bg-hover: is-dark ? #333333 : #ededed; // 悬停底色
+    out property <color> border: is-dark ? #3a3a3a : #dcdcdc;           // 常态描边
+    out property <color> border-hover: is-dark ? #4a4a4a : #bdbdbd;     // 悬停描边
+    out property <color> accent: is-dark ? #5b7cfa : #3b5bdb;           // 强调色（亮色加深以保证白底对比度）
+    out property <color> titlebar-bg: is-dark ? #252525 : #e6e6e6;      // 自定义顶栏底色
 
     // ---------- 文本 ----------
-    out property <color> text: #e6e6e6;             // 主文本
-    out property <color> text-muted: #9a9a9a;       // 次要文本 / 占位符
-    out property <color> code: #9ecbff;             // Snippet 代码文本
+    // 亮色说明：正文用 #1a1a1a（不用纯黑），次要文本 #6b6b6b。
+    out property <color> text: is-dark ? #e6e6e6 : #1a1a1a;             // 主文本
+    out property <color> text-muted: is-dark ? #9a9a9a : #6b6b6b;       // 次要文本 / 占位符
+    out property <color> code: is-dark ? #9ecbff : #0b5394;             // Snippet 代码文本（亮色用深蓝）
 
     // ---------- 徽章与标签 ----------
+    // 徽章保持"深底白字"（两套主题一致）：在白卡片上也足够清晰，并与实心按钮共用 on-solid-text。
     out property <color> badge-code-bg: #1f3a8a;    // Code 徽章
     out property <color> badge-note-bg: #4a3a8a;    // Note 徽章（同色系紫）
     out property <color> badge-text: #ffffff;
-    out property <color> tag-bg: #333333;           // 标签底色
+    out property <color> tag-bg: is-dark ? #333333 : #e8e8e8;           // 标签底色（亮色浅灰 + 深灰字）
 
-    // ---------- 卡片操作按钮的悬停色（自拟：规范只给了颜色名） ----------
-    out property <color> hover-view: #5b7cfa;       // View  -> 蓝
-    out property <color> hover-copy: #4ec26a;       // Copy  -> 绿
-    out property <color> hover-edit: #e0a33c;       // Edit  -> 橙
-    out property <color> hover-delete: #e05252;     // Delete-> 红
+    // ---------- 卡片操作按钮的悬停色（自拟：规范只给了颜色名；亮色下统一加深） ----------
+    out property <color> hover-view: is-dark ? #5b7cfa : #2f56d9;       // View  -> 蓝
+    out property <color> hover-copy: is-dark ? #4ec26a : #1f8f45;       // Copy  -> 绿
+    out property <color> hover-edit: is-dark ? #e0a33c : #b06f10;       // Edit  -> 橙
+    out property <color> hover-delete: is-dark ? #e05252 : #cc2f2f;     // Delete-> 红
 
-    // 危险操作（窗口关闭等）的悬停底色：与 hover-delete 同色，
-    // 语义分开命名是为了以后能单独调整（例如删除按钮改成描边红、关闭按钮改成实心红）。
-    out property <color> danger-hover-bg: #e05252;
+    // 实心（强调色/危险色）底色上的文字：两套主题都用白色，
+    // 避免亮色主题下"深色文字压在蓝/红实底上"导致对比度不足。
+    out property <color> on-solid-text: #ffffff;
 
-    // ---------- 危险操作与弹层 ----------
-    out property <color> overlay-bg: #00000099;      // 弹层遮罩
-    out property <color> panel-bg: #262626;          // 弹层面板底色
-    out property <color> toast-bg: #000000e6;        // 底部提示底色
-    out property <color> danger-bg: #e05252;         // 危险按钮底色（确认删除）
-    out property <color> danger-bg-hover: #c94646;   // 危险按钮悬停
-    out property <color> accent-hover: #6d8bff;      // 强调色按钮悬停（比 accent 略亮）
+    // 危险操作（窗口关闭 / 确认删除）的红色
+    out property <color> danger-hover-bg: is-dark ? #e05252 : #d64545;  // 图标按钮悬停底色
+    out property <color> danger-bg: is-dark ? #e05252 : #d64545;        // 危险按钮底色（确认删除）
+    out property <color> danger-bg-hover: is-dark ? #c94646 : #b83636;  // 危险按钮悬停
+    out property <color> accent-hover: is-dark ? #6d8bff : #2f4cc4;     // 强调色按钮悬停
+
+    // ---------- 弹层与提示 ----------
+    out property <color> overlay-bg: is-dark ? #00000099 : #00000040;   // 遮罩（亮色下更淡）
+    out property <color> panel-bg: is-dark ? #262626 : #ffffff;         // 弹层面板底色
+    out property <color> toast-bg: is-dark ? #000000e6 : #ffffff;       // 底部提示底色（亮色白底深字）
 
     // ---------- 圆角 ----------
     out property <length> radius-card: 8px;
@@ -63,8 +76,10 @@ export global Theme {
 
     // ---------- 控件尺寸 ----------
     out property <length> control-h: 34px;          // 工具栏控件高度
+    out property <length> titlebar-h: 34px;         // 自定义顶栏高度（需求：32~36px）
     out property <length> icon-size: 16px;          // 图标绘制区（IconGlyph 的 path 坐标按 16x16 编写）
     out property <length> icon-button-w: 34px;
+    // 语言下拉用的固定宽度：当前设计已改为"点击即切换"按钮，保留给未来的下拉方案
     out property <length> lang-menu-w: 96px;
 
     // ---------- 字体 ----------

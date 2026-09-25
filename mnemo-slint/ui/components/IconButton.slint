@@ -1,11 +1,13 @@
 import { Theme } from "../theme.slint";
 
-// 图标类型：导入（箭头向下收入托架）/ 导出（箭头向上送出）/ 新建 / 最小化 / 关闭
+// 图标类型：导入（箭头向下收入托架）/ 导出（箭头向上送出）/ 新建 / 最小化 / 最大化 / 还原 / 关闭
 export enum IconKind {
     icon-import,
     icon-export,
     icon-add,
     icon-minimize,
+    icon-maximize,
+    icon-restore,
     icon-close,
 }
 
@@ -67,6 +69,23 @@ component IconGlyph inherits Rectangle {
         fill: root.glyph-color;
     }
 
+    // ---- 最大化：空心方框 ----
+    // 一个方框 = 4 条填充边（沿用"图标只用填充、不用 stroke"的约定）。
+    // 这里用紧凑的单行写法，因为 4 条边完全同构，逐行展开反而难读。
+    if (root.kind == IconKind.icon-maximize) : Rectangle { x: 3.2px; y: 3.2px; width: 9.6px; height: 1.5px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-maximize) : Rectangle { x: 3.2px; y: 11.3px; width: 9.6px; height: 1.5px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-maximize) : Rectangle { x: 3.2px; y: 3.2px; width: 1.5px; height: 9.6px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-maximize) : Rectangle { x: 11.3px; y: 3.2px; width: 1.5px; height: 9.6px; background: root.glyph-color; }
+
+    // ---- 还原（向下还原）：两个叠放的方框，后框只画露在外面的上边与右边 ----
+    // 前框 [2.2,11.0]x[5.5,14.0]，后框 [5.0,13.8]x[2.2,10.7]
+    if (root.kind == IconKind.icon-restore) : Rectangle { x: 2.2px; y: 5.5px; width: 8.8px; height: 1.5px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-restore) : Rectangle { x: 2.2px; y: 12.5px; width: 8.8px; height: 1.5px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-restore) : Rectangle { x: 2.2px; y: 5.5px; width: 1.5px; height: 8.5px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-restore) : Rectangle { x: 9.5px; y: 5.5px; width: 1.5px; height: 8.5px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-restore) : Rectangle { x: 5.0px; y: 2.2px; width: 8.8px; height: 1.5px; background: root.glyph-color; }
+    if (root.kind == IconKind.icon-restore) : Rectangle { x: 12.3px; y: 2.2px; width: 1.5px; height: 8.5px; background: root.glyph-color; }
+
     // ---- 导入：向下的箭头 + 底部托架 ----
     if (root.kind == IconKind.icon-import) : Rectangle {
         x: (root.width - root.bar) / 2;
@@ -118,16 +137,18 @@ component IconGlyph inherits Rectangle {
     }
 }
 
-// 图标按钮：34x34 圆角方块，底色 #2a2a2a，悬停 #333333（danger 时悬停变红）。
+// 图标按钮：34x34 圆角方块，底色 control-bg，悬停 control-bg-hover（danger 时悬停变红）。
 export component IconButton inherits Rectangle {
     in property <IconKind> kind: IconKind.icon-add;
-    // 危险操作（如关闭窗口）：悬停底色改用 danger 红，与普通按钮区分
+    // 危险操作（关闭窗口等）：悬停底色改用 danger 红，与普通按钮区分
     in property <bool> danger: false;
+    // 透明底：用于自定义顶栏的窗口控制按钮（常态无底色，悬停才高亮，贴近系统标题栏观感）
+    in property <bool> flat: false;
     callback clicked();
 
     background: touch.has-hover
         ? (root.danger ? Theme.danger-hover-bg : Theme.control-bg-hover)
-        : Theme.control-bg;
+        : (root.flat ? transparent : Theme.control-bg);
     border-radius: Theme.radius-control;
 
     min-width: Theme.icon-button-w;
@@ -141,7 +162,8 @@ export component IconButton inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         kind: root.kind;
-        glyph-color: Theme.text;
+        // danger 悬停时底色是实心红，图标改用白色保证对比度（亮色主题尤其明显）
+        glyph-color: (root.danger && touch.has-hover) ? Theme.on-solid-text : Theme.text;
     }
 
     touch := TouchArea {

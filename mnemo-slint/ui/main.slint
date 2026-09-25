@@ -2,6 +2,7 @@ import { Theme } from "theme.slint";
 import { State, Strings } from "state.slint";
 // ScrollView / ListView 等视图组件定义在 std-widgets 中，必须显式导入
 import { ScrollView } from "std-widgets.slint";
+import { TitleBar } from "components/TitleBar.slint";
 import { Toolbar } from "components/Toolbar.slint";
 import { CommandCard } from "components/CommandCard.slint";
 import { EditorPanel } from "components/EditorPanel.slint";
@@ -29,7 +30,9 @@ export component MainWindow inherits Window {
     callback import-clicked();
     callback export-clicked();
     callback new-clicked();
-    callback lang-selected(string);
+    // 主题 / 语言：点击即切换（无下拉），实现在 Rust 侧（含 settings.json 持久化）
+    callback theme-clicked();
+    callback lang-clicked();
 
     // 搜索关键词变化（每次输入触发）→ Rust 侧查询 mnemo-core 并刷新列表
     callback query-changed(string);
@@ -39,9 +42,11 @@ export component MainWindow inherits Window {
     callback editor-save();    // 保存（Rust 侧校验 title/content 必填后写库）
     callback confirm-ok();     // 确认删除（取消/关闭直接在 .slint 侧改 State，不必回 Rust）
 
-    // 无边框窗口的系统级操作（Rust 侧实现）：
-    // 最小化到任务栏 / 隐藏到托盘（关闭 ≠ 退出进程，退出走托盘菜单）
+    // 无边框窗口的系统级操作（Rust 侧实现，全部由自定义顶栏触发）：
+    // 拖动 / 最小化到任务栏 / 最大化还原 / 隐藏到托盘（关闭 ≠ 退出进程，退出走托盘菜单）
+    callback drag-requested();
     callback minimize-requested();
+    callback maximize-requested();
     callback hide-requested();
 
     title: "Mnemo";
@@ -62,16 +67,8 @@ export component MainWindow inherits Window {
     // 初始焦点交给键盘捕获作用域：启动后不点任何控件也能直接用快捷键
     forward-focus: content-scope;
 
-    // 无边框窗口的拖动区域：只覆盖顶部工具栏那一条空白背景。
-    // 层级规则：声明在内容之前 → 位于底层。命中测试按"后面的兄弟元素在上"进行，
-    // 因此搜索框 / 下拉菜单 / 图标按钮的 TouchArea 都会先拿到点击，拖动区只接收到
-    // 它们之外的空白区域（WindowMoveArea 自身也只响应"拖拽超过阈值"，普通点击不会移动窗口）。
-    WindowMoveArea {
-        x: 0;
-        y: 0;
-        width: parent.width;
-        height: Theme.pad-window + Theme.control-h;
-    }
+    // 窗口拖动已移入自定义顶栏（TitleBar.slint）：只有顶栏区域可拖动，且最大化时拖动自动失效。
+    // 这里不再放 WindowMoveArea（为什么改用 TouchArea，见 TitleBar.slint 顶部注释）。
 
     // ---------- 键盘捕获 ----------
     // FocusScope 必须包住整个内容树：它只在"自身有焦点"或"包裹着有焦点的子元素"时才会收到按键，
@@ -111,34 +108,41 @@ export component MainWindow inherits Window {
             activated => { toolbar.focus-search(); }
         }
 
-        VerticalLayout {
+        // 自定义顶栏：通栏贴顶（不受内容区 Theme.pad-window 影响）
+        titlebar := TitleBar {
             x: 0;
             y: 0;
+            width: parent.width;
+
+            drag-requested => { root.drag-requested(); }
+            minimize-clicked => { root.minimize-requested(); }
+            maximize-clicked => { root.maximize-requested(); }
+            close-clicked => { root.hide-requested(); }
+        }
+
+        // 内容区：让开顶栏高度，保留原有内边距
+        VerticalLayout {
+            x: 0;
+            y: Theme.titlebar-h;
             width: 100%;
-            height: 100%;
+            height: parent.height - Theme.titlebar-h;
             padding: Theme.pad-window;
             spacing: Theme.gap-card;
 
             toolbar := Toolbar {
                 query <=> State.query;
-                lang-label: State.lang-label;
-                lang-code: State.lang-code;
-                langs: State.langs;
 
                 query-edited(q) => {
                     // 写入 State（保持输入框内容）+ 转给 Rust 侧查询；本地 SQLite + LIKE 足够快，暂不做防抖
                     State.query = q;
                     root.query-changed(q);
                 }
-                lang-selected(code) => {
-                    // 切换语言：Rust 侧会重写 Strings / 托盘文案并持久化 settings.json
-                    root.lang-selected(code);
-                }
+                // 主题 / 语言：Rust 侧切换全局状态并持久化 settings.json（切换后界面自动重绘）
+                theme-clicked => { root.theme-clicked(); }
+                lang-clicked => { root.lang-clicked(); }
                 import-clicked => { root.import-clicked(); }
                 export-clicked => { root.export-clicked(); }
                 new-clicked => { root.new-clicked(); }
-                minimize-clicked => { root.minimize-requested(); }
-                close-clicked => { root.hide-requested(); }
             }
 
             // ---------- 命令卡片列表 ----------

@@ -64,14 +64,18 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let flags = Rc::new(Cell::new(WindowFlags::new()));
 
-    // 语言：优先用 settings.json 里持久化的选择，没有则按系统 locale 推断
+    // 语言与主题：优先用 settings.json 里的持久化值（与旧版 egui 共用同一字段），
+    // 没有则语言按系统 locale 推断、主题默认暗色。
     let lang = settings::load_lang().unwrap_or_else(i18n::Lang::from_system);
+    let is_dark = settings::load_theme().unwrap_or(true);
     let i18n = Rc::new(RefCell::new(i18n::I18n::new(lang)));
     // Toast 的"最后一次提示"令牌：连续提示时避免旧定时器把新提示提前关掉
     let toast_token = Rc::new(Cell::new(0u32));
 
     let ui = MainWindow::new()?;
     apply_code_font(&ui);
+    // 主题状态必须在窗口显示前写入：界面所有颜色都是基于它的条件绑定
+    ui.global::<Theme>().set_is_dark(is_dark);
     strings::apply(&ui, &i18n.borrow());
 
     // 数据层：打开 commands.db（含建表/迁移）并做首次查询，把真实数据绑定给 State.commands
@@ -103,7 +107,7 @@ fn main() -> Result<(), slint::PlatformError> {
     if let Some(tray) = &tray {
         strings::apply_tray(tray, &i18n.borrow());
     }
-    install_language_binding(&ui, tray.clone(), i18n.clone());
+    install_preference_callbacks(&ui, tray.clone(), i18n.clone());
 
     ui.show()?;
     if let Some(tray) = &tray {
@@ -313,8 +317,23 @@ fn install_business_callbacks(
     }
 }
 
-// 窗口控制按钮（工具栏最右侧）：最小化到任务栏 / 关闭（= 隐藏到托盘，不退出进程）。
+// 自定义顶栏的窗口控制：拖动 / 最小化 / 最大化还原 / 关闭（= 隐藏到托盘，不退出进程）。
 fn install_window_controls(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
+    // 拖动：调用 winit 的系统级窗口拖动（Slint 的 WindowMoveArea 内部用的也是同一个 API）。
+    // 拖动阈值判断在 TitleBar.slint 里完成，这里只在确实要开始拖动时才被调用。
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_drag_requested(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.window().with_winit_window(|window| {
+                    if let Err(err) = window.drag_window() {
+                        eprintln!("[mnemo] 启动窗口拖动失败：{err}");
+                    }
+                });
+            }
+        });
+    }
+
     // 最小化
     {
         let flags = flags.clone();
@@ -327,6 +346,16 @@ fn install_window_controls(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
                 f.minimizing = true;
                 flags.set(f);
                 ui.window().set_minimized(true);
+            }
+        });
+    }
+
+    // 最大化 / 还原（顶栏按钮与双击顶栏空白走的是同一条路径）
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_maximize_requested(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                toggle_maximize(&ui);
             }
         });
     }
@@ -368,6 +397,17 @@ fn install_window_event_hook(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
                         // TODO(P1)：接入 rfd 文件对话框（导入/导出）时，需要用 suppress 标志
                         // 临时禁用这里，否则打开对话框会让窗口自动隐藏。
                         let _ = window.hide();
+                    }
+                }
+                winit::event::WindowEvent::Resized(_) => {
+                    // 最大化 / 还原也可能由外部触发（Win+↑、任务栏菜单、系统快捷键……），
+                    // 这里把真实状态同步给 State，保证顶栏"最大化/还原"图标始终正确。
+                    if let Some(ui) = ui_weak.upgrade() {
+                        let maximized = window.is_maximized();
+                        let state = ui.global::<State>();
+                        if state.get_maximized() != maximized {
+                            state.set_maximized(maximized);
+                        }
                     }
                 }
                 winit::event::WindowEvent::KeyboardInput { event: key_event, .. } => {
@@ -502,28 +542,53 @@ fn show_toast(ui: &MainWindow, text: &str, token: &Rc<Cell<u32>>) {
     });
 }
 
-// 语言切换：更新 i18n → 重写界面与托盘文案 → 持久化到 settings.json。
-// 关掉语言下拉后菜单文案要立刻跟着变，所以托盘也要重新应用一次。
-fn install_language_binding(
+// 主题与语言：都是"点击即切换"，切换后持久化到 settings.json（字段与旧版 egui 共用）。
+fn install_preference_callbacks(
     ui: &MainWindow,
     tray: Option<Rc<Tray>>,
     i18n: Rc<RefCell<i18n::I18n>>,
 ) {
-    let ui_weak = ui.as_weak();
-    ui.on_lang_selected(move |code| {
-        let Some(lang) = i18n::Lang::from_code(code.as_str()) else { return };
-        i18n.borrow_mut().set_lang(lang);
-        {
-            let i18n = i18n.borrow();
+    // 主题：只切换 Theme 全局的 is-dark。界面所有颜色都是它的条件绑定，
+    // Slint 的绑定系统会自动重算并重绘，不需要逐控件通知。
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_theme_clicked(move || {
             if let Some(ui) = ui_weak.upgrade() {
-                strings::apply(&ui, &i18n);
+                let theme = ui.global::<Theme>();
+                let is_dark = !theme.get_is_dark();
+                theme.set_is_dark(is_dark);
+                settings::save_theme(is_dark);
             }
-            if let Some(tray) = &tray {
-                strings::apply_tray(tray, &i18n);
+        });
+    }
+
+    // 语言：中英互换 → 重写界面与托盘文案 → 持久化。
+    // 语言按钮与托盘菜单文案要立刻跟着变，所以托盘也要重新应用一次。
+    {
+        let ui_weak = ui.as_weak();
+        ui.on_lang_clicked(move || {
+            let next = i18n.borrow().lang().toggled();
+            i18n.borrow_mut().set_lang(next);
+            {
+                let i18n = i18n.borrow();
+                if let Some(ui) = ui_weak.upgrade() {
+                    strings::apply(&ui, &i18n);
+                }
+                if let Some(tray) = &tray {
+                    strings::apply_tray(tray, &i18n);
+                }
             }
-        }
-        settings::save_lang(lang);
-    });
+            settings::save_lang(next);
+        });
+    }
+}
+
+// 切换最大化 / 还原，并把结果同步到 State（顶栏图标与"最大化时禁止拖动"都依赖它）。
+fn toggle_maximize(ui: &MainWindow) {
+    let window = ui.window();
+    let next = !window.is_maximized();
+    window.set_maximized(next);
+    ui.global::<State>().set_maximized(next);
 }
 
 // 空字符串 → None（备注/标签留空时不写库，与旧版 egui 的行为一致）。

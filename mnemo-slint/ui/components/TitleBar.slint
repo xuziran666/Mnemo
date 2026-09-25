@@ -1,0 +1,124 @@
+import { Theme } from "../theme.slint";
+import { State } from "../state.slint";
+import { IconButton, IconKind } from "IconButton.slint";
+
+// 自定义顶栏（无边框窗口的标题栏）：
+// 左 = 应用图标 + 名称，中 = 空白（可拖动 / 双击最大化），右 = 最小化 / 最大化还原 / 关闭。
+//
+// 为什么这里没有用 WindowMoveArea（需求原本要求用它）：
+// WindowMoveArea 记录"按下位置"是在目标元素自身的过滤阶段完成的
+// （i-slint-core/items/input_items.rs 的 input_event_filter_before_children），
+// 只要它上面盖了 TouchArea（双击最大化需要），按下事件就再也落不到它身上，拖动会失效。
+// 因此这里用 TouchArea 自己实现同样的语义：按下记坐标 → 移动超过阈值 → 请求 Rust 调用
+// winit 的 drag_window()（WindowMoveArea 内部调用的正是同一个系统 API，行为一致）。
+export component TitleBar inherits Rectangle {
+    callback drag-requested();      // 请求开始窗口拖动（Rust: winit drag_window）
+    callback minimize-clicked();
+    callback maximize-clicked();
+    callback close-clicked();
+
+    min-height: Theme.titlebar-h;
+    max-height: Theme.titlebar-h;
+    background: Theme.titlebar-bg;
+
+    // 拖动相关状态：按下位置 + 是否处于按下状态 + 是否已经触发过拖动
+    private property <length> press-x: 0px;
+    private property <length> press-y: 0px;
+    private property <bool> pressed: false;
+    private property <bool> dragging: false;
+
+    // 底部 1px 分隔线（只画下边，所以用矩形而不是 border-*）
+    Rectangle {
+        x: 0;
+        y: parent.height - 1px;
+        width: parent.width;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    // ---------- 左：应用图标 + 名称 ----------
+    app-icon := Image {
+        x: Theme.pad-window;
+        y: (parent.height - self.height) / 2;
+        width: 16px;
+        height: 16px;
+        source: @image-url("../../assets/icons/icon.png");
+        image-fit: contain;
+    }
+
+    Text {
+        x: app-icon.x + app-icon.width + Theme.gap-chip;
+        y: 0;
+        height: parent.height;
+        // 产品名，不参与 i18n
+        text: "Mnemo";
+        color: Theme.text;
+        font-size: Theme.fs-body;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    // ---------- 右：窗口控制按钮（flat = 常态透明底，悬停才高亮）----------
+    close-button := IconButton {
+        x: parent.width - self.width;
+        y: 0;
+        kind: IconKind.icon-close;
+        danger: true; // 悬停变红
+        flat: true;
+        clicked => { root.close-clicked(); }
+    }
+    maximize-button := IconButton {
+        x: close-button.x - self.width;
+        y: 0;
+        // 最大化状态由 Rust 维护并同步，图标随之切换
+        kind: State.maximized ? IconKind.icon-restore : IconKind.icon-maximize;
+        flat: true;
+        clicked => { root.maximize-clicked(); }
+    }
+    minimize-button := IconButton {
+        x: maximize-button.x - self.width;
+        y: 0;
+        kind: IconKind.icon-minimize;
+        flat: true;
+        clicked => { root.minimize-clicked(); }
+    }
+
+    // ---------- 中：拖动区 + 双击最大化 ----------
+    // 宽度让开右侧按钮（声明顺序 + 宽度共同保证按钮的点击不被遮挡）。
+    title-drag := TouchArea {
+        x: 0;
+        y: 0;
+        width: max(0px, minimize-button.x - Theme.gap-control);
+        height: parent.height;
+        mouse-cursor: MouseCursor.default;
+
+        double-clicked => { root.maximize-clicked(); }
+
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                // PointerEvent 本身不带坐标（只有 kind/button/modifiers/touch-finger-id），
+                // 因此按下位置取自 TouchArea 自带的 mouse-x / mouse-y（相对本元素）。
+                root.press-x = title-drag.mouse-x;
+                root.press-y = title-drag.mouse-y;
+                root.pressed = true;
+                root.dragging = false;
+            } else if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                root.pressed = false;
+            } else if (event.kind == PointerEventKind.move && root.pressed && !root.dragging) {
+                // 与 WindowMoveArea 相同的阈值语义：只有移动超过阈值才算拖动，
+                // 普通点击与双击（两次原地按下）不会被误判成拖动。
+                // pressed 门闩是必需的：move 事件不保证只在按下时派发，没有它会把"悬停移动"当成拖动。
+                if (title-drag.mouse-x > root.press-x + 4px
+                    || title-drag.mouse-x < root.press-x - 4px
+                    || title-drag.mouse-y > root.press-y + 4px
+                    || title-drag.mouse-y < root.press-y - 4px) {
+                    root.dragging = true;
+                    // 最大化时禁止拖动，避免把最大化窗口拖乱
+                    if (!State.maximized) {
+                        root.drag-requested();
+                    }
+                }
+            }
+        }
+    }
+}

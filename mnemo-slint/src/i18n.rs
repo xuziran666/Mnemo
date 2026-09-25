@@ -33,6 +33,14 @@ impl Lang {
         }
     }
 
+    // 中英互换：工具栏的语言按钮是"点击即切换"，没有下拉
+    pub fn toggled(self) -> Self {
+        match self {
+            Lang::En => Lang::Zh,
+            Lang::Zh => Lang::En,
+        }
+    }
+
     // 按系统 locale 粗略判断语言；无法判断时回退英文（规则与旧版 egui 一致）。
     pub fn from_system() -> Self {
         for var in ["LC_ALL", "LC_MESSAGES", "LANG"] {

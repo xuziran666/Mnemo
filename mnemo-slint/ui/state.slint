@@ -23,6 +23,8 @@ export struct LangOption {
 export global Strings {
     in-out property <string> search-placeholder: "Search commands...";
     in-out property <string> lang-title: "Switch language";
+    // 语言切换按钮：显示"可以切换到的语言"（英文界面显示"中文"，中文界面显示"EN"）
+    in-out property <string> lang-button: "中文";
     in-out property <string> io-import: "Import";
     in-out property <string> io-export: "Export";
     in-out property <string> add-title: "Add command";
@@ -71,6 +73,11 @@ export global State {
     ];
     in-out property <string> lang-code: "en";
     in-out property <string> lang-label: "English";
+
+    // ---------- 窗口状态 ----------
+    // 由 Rust 侧维护（顶栏按钮点击 + winit Resized 事件同步外部变化）：
+    // 顶栏据此切换"最大化 / 还原"图标，并在最大化时禁用顶栏拖动。
+    in-out property <bool> maximized: false;
 
     // ---------- 编辑器（窗口内浮层）----------
     // 新建时为 0；编辑时为该条目的 id。字段值由 Rust 侧写入，保存时由 Rust 读取。

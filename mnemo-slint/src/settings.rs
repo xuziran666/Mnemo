@@ -19,22 +19,44 @@ pub fn load_lang() -> Option<Lang> {
     Lang::from_code(value.get("lang")?.as_str()?)
 }
 
+// 读取主题偏好。字段名与取值（"dark"/"light"）沿用旧版 egui 的约定，
+// 因此两个实现读写同一份设置；缺失或非法值返回 None（由调用方决定默认值）。
+pub fn load_theme() -> Option<bool> {
+    let text = std::fs::read_to_string(settings_path()?).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    match value.get("theme")?.as_str()? {
+        "dark" => Some(true),
+        "light" => Some(false),
+        _ => None,
+    }
+}
+
 pub fn save_lang(lang: Lang) {
+    update_setting("lang", json!(lang.code()));
+}
+
+pub fn save_theme(is_dark: bool) {
+    update_setting("theme", json!(if is_dark { "dark" } else { "light" }));
+}
+
+// 读-改-写单个字段：保留文件里其它应用的设置（例如 egui 版的 theme/lang），
+// 避免"切一次主题就把对方的偏好清掉"。
+fn update_setting(key: &str, value: Value) {
     let Some(path) = settings_path() else { return };
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let mut value = std::fs::read_to_string(&path)
+    let mut root = std::fs::read_to_string(&path)
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .unwrap_or_else(|| json!({}));
-    if !value.is_object() {
-        value = json!({});
+    if !root.is_object() {
+        root = json!({});
     }
-    value["lang"] = json!(lang.code());
+    root[key] = value;
 
-    if let Err(err) = std::fs::write(&path, value.to_string()) {
+    if let Err(err) = std::fs::write(&path, root.to_string()) {
         eprintln!("[mnemo] 写入设置失败：{err}");
     }
 }

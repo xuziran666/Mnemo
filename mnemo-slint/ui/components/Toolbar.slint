@@ -1,27 +1,25 @@
 import { Theme } from "../theme.slint";
-import { LangOption } from "../state.slint";
+import { Strings } from "../state.slint";
 import { SearchBox } from "SearchBox.slint";
-import { LangMenu } from "LangMenu.slint";
 import { IconButton, IconKind } from "IconButton.slint";
+import { SolidButton } from "SolidButton.slint";
 
-// 顶部工具栏：搜索框（自适应宽度）+ 语言下拉 + 导入 / 导出 / 新建图标按钮。
+// 顶部工具栏（顺序固定）：搜索框（自适应宽度）→ 主题切换 → 语言切换 → 导入 → 导出 → 新建。
+// 说明：
+// - 语言下拉（LangMenu）已按新设计移除，改为"点击即切换"的按钮（LangMenu.slint 文件保留但不再被引用）；
+// - 最小化 / 关闭按钮已上移到自定义顶栏（TitleBar.slint）。
 export component Toolbar inherits Rectangle {
     in-out property <string> query;
-    in property <string> lang-label: "English";
-    in property <string> lang-code: "en";
-    in property <[LangOption]> langs;
 
     // 供主窗口的键盘快捷键使用：搜索框是否聚焦 + 主动聚焦搜索框
     out property <bool> search-focused: search-box.input-focused;
 
     callback query-edited(string);
-    callback lang-selected(string);
+    callback theme-clicked();
+    callback lang-clicked();
     callback import-clicked();
     callback export-clicked();
     callback new-clicked();
-    // 窗口控制：无边框窗口没有系统标题栏，最小化 / 关闭只能自己做
-    callback minimize-clicked();
-    callback close-clicked();
 
     background: transparent;
     min-height: Theme.control-h;
@@ -41,11 +39,16 @@ export component Toolbar inherits Rectangle {
             edited(q) => { root.query-edited(q); }
         }
 
-        LangMenu {
-            label: root.lang-label;
-            code: root.lang-code;
-            options: root.langs;
-            selected(c) => { root.lang-selected(c); }
+        // 主题切换：图标显示"当前主题"（暗色 → 🌙，亮色 → ☀）
+        SolidButton {
+            text: Theme.is-dark ? "🌙" : "☀";
+            clicked => { root.theme-clicked(); }
+        }
+
+        // 语言切换：显示"可切换到的语言"（英文界面显示"中文"，中文界面显示"EN"）
+        SolidButton {
+            text: Strings.lang-button;
+            clicked => { root.lang-clicked(); }
         }
 
         IconButton {
@@ -59,17 +62,6 @@ export component Toolbar inherits Rectangle {
         IconButton {
             kind: IconKind.icon-add;
             clicked => { root.new-clicked(); }
-        }
-
-        // 窗口控制：最小化到任务栏 / 隐藏到托盘（关闭 ≠ 退出进程，退出走托盘菜单）
-        IconButton {
-            kind: IconKind.icon-minimize;
-            clicked => { root.minimize-clicked(); }
-        }
-        IconButton {
-            kind: IconKind.icon-close;
-            danger: true; // 关闭属于危险操作：悬停变红
-            clicked => { root.close-clicked(); }
         }
     }
 
