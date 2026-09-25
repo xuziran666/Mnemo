@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-use crate::mnemo_core::models::{Command, ExportCommand, ExportData, ImportResult, NewCommand};
+use crate::models::{Command, ExportCommand, ExportData, ImportResult, NewCommand};
 
 // LIKE 搜索需要对 %、_ 和 \ 做转义，否则用户输入的关键字会被当成通配符，导致误匹配。
 fn escape_like(s: &str) -> String {

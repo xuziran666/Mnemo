@@ -1,5 +1,4 @@
 mod commands;
-mod mnemo_core;
 
 use commands::Db;
 use tauri::Manager;

@@ -1910,6 +1910,7 @@ dependencies = [
 name = "mnemo"
 version = "0.3.4"
 dependencies = [
+ "mnemo-core",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1918,6 +1919,15 @@ dependencies = [
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
+]
+
+[[package]]
+name = "mnemo-core"
+version = "0.3.4"
+dependencies = [
+ "rusqlite",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

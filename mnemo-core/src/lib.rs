@@ -2,11 +2,14 @@ pub mod db;
 pub mod models;
 pub mod service;
 
+// 重导出 rusqlite，让上层 crate 无需单独声明该依赖即可持有 Connection 类型。
+pub use rusqlite;
+
 use db::open;
 use models::{Command, ImportResult, NewCommand};
 
 /// 打开应用数据目录下的 SQLite 数据库，并执行 schema 初始化与兼容迁移。
-/// 这是纯 Rust 核心入口，不依赖 Tauri，便于后续迁移到 egui 时直接复用。
+/// 这是纯 Rust 核心入口，不依赖任何 GUI 框架。
 pub fn open_db(path: std::path::PathBuf) -> Result<rusqlite::Connection, String> {
     open(path).map_err(|e| e.to_string())
 }
