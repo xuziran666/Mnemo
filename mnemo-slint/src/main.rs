@@ -9,6 +9,8 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use mnemo_core::models::{NewCommand, KIND_SNIPPET};
 use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
@@ -64,6 +66,71 @@ fn set_dialog_open(flags: &Rc<Cell<WindowFlags>>, open: bool) {
     flags.set(f);
 }
 
+// ---------- 窗口尺寸持久化 ----------
+
+// 尺寸合法范围：比 Slint 里声明的最小尺寸宽松，只用来挡住明显异常的值（损坏的 settings.json）。
+const WINDOW_MIN_SIDE: u32 = 300;
+const WINDOW_MAX_SIDE: u32 = 10_000;
+
+// 退出时持久化窗口尺寸与最大化状态。
+// 最大化时只更新标志位、保留上一次"非最大化"尺寸，否则下次还原会得到一个最大化大小的窗口。
+fn save_window_prefs(ui: &MainWindow, last_normal_size: &Rc<Cell<(u32, u32)>>) {
+    let maximized = ui.window().is_maximized();
+    let (width, height) = last_normal_size.get();
+    if width >= WINDOW_MIN_SIDE && height >= WINDOW_MIN_SIDE {
+        settings::save_window(width, height, maximized);
+    } else if let Some(prev) = settings::load_window() {
+        settings::save_window(prev.width, prev.height, maximized);
+    }
+}
+
+// ---------- 单实例 ----------
+//
+// 用回环 TCP 端口做单实例：抢到端口的是主实例并常驻监听；后来者请主实例唤回窗口后自己退出。
+// **失败一律放行（fail-open）**：宁可多开一个实例，也不能因为端口被无关进程占用而拒绝启动。
+// 因此握手是双向的——后来者必须收到 "mnemo:ok" 才认为对方是本应用。
+const SINGLE_INSTANCE_ADDR: &str = "127.0.0.1:47831";
+const SHOW_REQUEST: &str = "mnemo:show";
+const SHOW_ACK: &str = "mnemo:ok";
+
+// 返回 true 表示本进程应继续启动；false 表示已有实例（已请它唤回窗口）。
+fn claim_single_instance(show_requested: Arc<AtomicBool>) -> bool {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::time::Duration;
+
+    let Ok(listener) = TcpListener::bind(SINGLE_INSTANCE_ADDR) else {
+        // 端口被占用：可能是主实例，也可能是无关进程 —— 用握手区分
+        let Ok(mut stream) = TcpStream::connect(SINGLE_INSTANCE_ADDR) else {
+            return true;
+        };
+        let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+        if stream
+            .write_all(format!("{SHOW_REQUEST}\n").as_bytes())
+            .is_err()
+        {
+            return true;
+        }
+        let mut ack = String::new();
+        return !(BufReader::new(&stream).read_line(&mut ack).is_ok() && ack.trim() == SHOW_ACK);
+    };
+
+    // 主实例：后台线程接收请求，只置一个原子标志（不跨线程访问 UI），UI 线程定时轮询
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let mut line = String::new();
+            if BufReader::new(&stream).read_line(&mut line).is_ok()
+                && line.trim() == SHOW_REQUEST
+            {
+                show_requested.store(true, Ordering::SeqCst);
+                let mut stream = stream;
+                let _ = stream.write_all(format!("{SHOW_ACK}\n").as_bytes());
+            }
+        }
+    });
+    true
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     // 失焦自动隐藏依赖 winit 的事件钩子，这里显式锁定 winit 后端。
     slint::BackendSelector::new()
@@ -74,6 +141,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let _ = slint::set_xdg_app_id("com.longanl.mnemo");
 
     let flags = Rc::new(Cell::new(WindowFlags::new()));
+
+    // 单实例：抢到回环端口的是主实例；后来者请它唤回窗口后直接退出（端口被无关进程占用时放行）
+    let show_requested = Arc::new(AtomicBool::new(false));
+    if !claim_single_instance(show_requested.clone()) {
+        return Ok(());
+    }
 
     // 语言与主题：优先用 settings.json 里的持久化值（与旧版 egui 共用同一字段），
     // 没有则语言按系统 locale 推断、主题默认暗色。
@@ -89,6 +162,20 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.global::<Theme>().set_is_dark(is_dark);
     strings::apply(&ui, &i18n.borrow());
 
+    // 恢复上次的窗口尺寸（位置不恢复，原因见 settings.rs::WindowPrefs 的说明）
+    let last_normal_size = Rc::new(Cell::new((0u32, 0u32)));
+    let restore_maximized = match settings::load_window() {
+        Some(prefs) => {
+            let width = prefs.width.clamp(WINDOW_MIN_SIDE, WINDOW_MAX_SIDE);
+            let height = prefs.height.clamp(WINDOW_MIN_SIDE, WINDOW_MAX_SIDE);
+            last_normal_size.set((width, height));
+            ui.window()
+                .set_size(slint::PhysicalSize::new(width, height));
+            prefs.maximized
+        }
+        None => false,
+    };
+
     // 数据层：打开 commands.db（含建表/迁移）并做首次查询，把真实数据绑定给 State.commands
     let app_data = data::AppData::open();
     data::refresh_list(&ui, &app_data, "");
@@ -97,7 +184,7 @@ fn main() -> Result<(), slint::PlatformError> {
     install_io_callbacks(&ui, &app_data, &flags, &i18n, &toast_token);
 
     install_window_controls(&ui, flags.clone());
-    install_window_event_hook(&ui, flags.clone());
+    install_window_event_hook(&ui, flags.clone(), last_normal_size.clone());
 
     // 托盘必须早于窗口显示：无边框窗口一旦被隐藏，托盘是唯一的唤回入口。
     let tray: Option<Rc<Tray>> = match Tray::new() {
@@ -124,12 +211,40 @@ fn main() -> Result<(), slint::PlatformError> {
     if let Some(tray) = &tray {
         tray.show()?;
     }
+
+    // 最大化在 show 之后再应用：窗口尚未创建时设置最大化在部分平台不生效
+    if restore_maximized {
+        ui.window().set_maximized(true);
+    }
+
+    // 主实例：定时把"请唤回窗口"的原子标志换成实际的显示动作。
+    // 后台监听线程不碰 UI；Timer 必须活到事件循环结束，因此绑在 main 的局部变量上。
+    let poll_timer = slint::Timer::default();
+    {
+        let flag = show_requested.clone();
+        let ui_weak = ui.as_weak();
+        let flags_for_poll = flags.clone();
+        poll_timer.start(
+            slint::TimerMode::Repeated,
+            std::time::Duration::from_millis(500),
+            move || {
+                if flag.swap(false, Ordering::SeqCst) {
+                    if let Some(ui) = ui_weak.upgrade() {
+                        show_window(&ui, &flags_for_poll);
+                    }
+                }
+            },
+        );
+    }
     // 托盘不在窗口组件树里，作用域结束就会被销毁（图标随之消失），这里显式持有到事件循环结束。
     let _keep_tray_alive = tray;
 
     // 使用 run_event_loop_until_quit：窗口隐藏（失焦自动隐藏 / Esc / 关闭按钮）后事件循环仍需继续，
     // 只有托盘菜单的 Quit（或"无托盘"退化路径）才退出。
     slint::run_event_loop_until_quit().expect("Slint event loop failed");
+
+    // 退出前持久化窗口尺寸与最大化状态（下次启动恢复）
+    save_window_prefs(&ui, &last_normal_size);
     Ok(())
 }
 
@@ -520,7 +635,11 @@ fn install_window_controls(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
 // 2) 最小化过程中抑制上述隐藏，否则"最小化到任务栏"会变成"隐藏到托盘"
 // 3) Esc：弹层（编辑器/确认框）打开时只关弹层，否则隐藏窗口。放在 Rust 侧拦截，
 //    与 .slint 里的 FocusScope（↑/↓/Enter/Ctrl+N/s）分工明确、互不重叠。
-fn install_window_event_hook(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
+fn install_window_event_hook(
+    ui: &MainWindow,
+    flags: Rc<Cell<WindowFlags>>,
+    last_normal_size: Rc<Cell<(u32, u32)>>,
+) {
     let armed = Rc::new(Cell::new(false));
     // 判断弹层是否需要优先处理需要读 State，因此钩子里也持有窗口弱引用
     let ui_weak = ui.as_weak();
@@ -544,8 +663,13 @@ fn install_window_event_hook(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
                 winit::event::WindowEvent::Resized(_) => {
                     // 最大化 / 还原也可能由外部触发（Win+↑、任务栏菜单、系统快捷键……），
                     // 这里把真实状态同步给 State，保证顶栏"最大化/还原"图标始终正确。
+                    let maximized = window.is_maximized();
+                    if !maximized {
+                        // 记录"非最大化"尺寸：退出时用它持久化（最大化状态下 size() 是最大化尺寸）
+                        let size = window.size();
+                        last_normal_size.set((size.width, size.height));
+                    }
                     if let Some(ui) = ui_weak.upgrade() {
-                        let maximized = window.is_maximized();
                         let state = ui.global::<State>();
                         if state.get_maximized() != maximized {
                             state.set_maximized(maximized);

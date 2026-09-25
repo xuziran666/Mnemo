@@ -1,7 +1,7 @@
 use slint::ComponentHandle;
 
 use crate::i18n::I18n;
-use crate::{MainWindow, State, Strings, Tray};
+use crate::{MainWindow, Strings, Tray};
 
 // 把语言资源写进界面文案与托盘菜单。
 //
@@ -48,11 +48,6 @@ pub fn apply(ui: &MainWindow, i18n: &I18n) {
     // 查看弹层（复用 viewer.* 文案）
     strings.set_viewer_edit(i18n.t("viewer.edit").into());
     strings.set_viewer_close(i18n.t("viewer.cancel").into());
-
-    // 语言下拉的状态：lang-code 决定选中项，lang-label 是按钮上显示的当前语言
-    let state = ui.global::<State>();
-    state.set_lang_code(i18n.lang().code().into());
-    state.set_lang_label(i18n.lang().label().into());
 }
 
 // 托盘菜单文案（菜单在窗口之外，需要单独应用一次）。

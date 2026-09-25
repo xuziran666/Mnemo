@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-// 支持的语言：新增语言时在此扩展，并在 state.slint 的 langs 里加一项、加 locales/<code>.json。
+// 支持的语言：新增语言时在此扩展，并添加 locales/<code>.json（语言按钮文案来自 lang.button）。
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
     En,
@@ -14,14 +14,6 @@ impl Lang {
         match self {
             Lang::En => "en",
             Lang::Zh => "zh",
-        }
-    }
-
-    // 下拉按钮显示"当前语言"，按惯例用该语言自己的写法（与 state.slint 的 langs 保持一致）。
-    pub fn label(self) -> &'static str {
-        match self {
-            Lang::En => "English",
-            Lang::Zh => "中文",
         }
     }
 

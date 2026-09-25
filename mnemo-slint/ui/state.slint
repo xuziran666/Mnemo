@@ -13,18 +13,14 @@ export struct CommandItem {
     kind: int, // 1 = Snippet（Code），2 = Note
 }
 
-// 语言下拉选项。
-export struct LangOption {
-    code: string,
-    label: string,
-}
-
-// 界面文案（P0 默认英文，与 locales/en.json 保持一致）。
+// 界面文案（默认英文，与 locales/en.json 保持一致；由 strings.rs 按语言覆盖）。
 export global Strings {
     in-out property <string> search-placeholder: "Search commands...";
     in-out property <string> lang-title: "Switch language";
     // 语言切换按钮：显示"可以切换到的语言"（英文界面显示"中文"，中文界面显示"EN"）
     in-out property <string> lang-button: "中文";
+    // 语言下拉（LangMenu）已移除，改为点击即切换；它留下的 `lang-menu-w` 令牌与
+    // State.langs / LangOption 一并删除，避免留死代码。
     in-out property <string> io-import: "Import";
     in-out property <string> io-export: "Export";
     in-out property <string> add-title: "Add command";
@@ -69,14 +65,6 @@ export global State {
     // 选中条目的 id（用 id 而不是下标：列表过滤/刷新后仍然稳定）
     // 0 表示无选中（数据库自增 id 从 1 开始，不会与真实条目冲突）
     in-out property <int> selected-id: 0;
-
-    // 语言：code 用于下拉选中态判断，label 用于按钮显示
-    in-out property <[LangOption]> langs: [
-        { code: "en", label: "English" },
-        { code: "zh", label: "中文" },
-    ];
-    in-out property <string> lang-code: "en";
-    in-out property <string> lang-label: "English";
 
     // ---------- 窗口状态 ----------
     // 由 Rust 侧维护（顶栏按钮点击 + winit Resized 事件同步外部变化）：

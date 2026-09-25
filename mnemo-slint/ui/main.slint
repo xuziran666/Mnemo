@@ -17,7 +17,7 @@ import { Tray } from "tray.slint";
 // 因此全局单例（Theme/State/Strings）、其它文件里的组件（Tray）、结构体与枚举
 // 必须在这里重导出，否则 Rust 侧会报 "cannot find type ..."。
 export { Theme } from "theme.slint";
-export { State, Strings, CommandItem, LangOption } from "state.slint";
+export { State, Strings, CommandItem } from "state.slint";
 export { IconKind } from "components/IconButton.slint";
 export { Tray } from "tray.slint";
 
@@ -101,9 +101,13 @@ export component MainWindow inherits Window {
             enabled: !toolbar.search-focused && (State.selected-id != 0);
             activated => { root.copy-requested(State.selected-id); }
         }
-        // Ctrl+N：新建（Windows/Linux 用 Control；macOS 的 Command 对应 Meta）
+        // Ctrl+N：新建（Windows/Linux 用 Control；macOS 的 Command 对应 Meta，两条都绑上）
         KeyBinding {
             keys: @keys(Control + N);
+            activated => { root.new-clicked(); }
+        }
+        KeyBinding {
+            keys: @keys(Meta + N);
             activated => { root.new-clicked(); }
         }
         // s：聚焦搜索框。搜索框已聚焦时字母键会被 TextInput 消费，这里再加 enabled 双保险。

@@ -6,7 +6,7 @@ import { SolidButton } from "SolidButton.slint";
 
 // 顶部工具栏（顺序固定）：搜索框（自适应宽度）→ 主题切换 → 语言切换 → 导入 → 导出 → 新建。
 // 说明：
-// - 语言下拉（LangMenu）已按新设计移除，改为"点击即切换"的按钮（LangMenu.slint 文件保留但不再被引用）；
+// - 语言下拉（LangMenu）已按新设计移除，改为"点击即切换"的按钮（相关文件与状态已一并清理）；
 // - 最小化 / 关闭按钮已上移到自定义顶栏（TitleBar.slint）。
 export component Toolbar inherits Rectangle {
     in-out property <string> query;

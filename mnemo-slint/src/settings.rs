@@ -39,6 +39,38 @@ pub fn save_theme(is_dark: bool) {
     update_setting("theme", json!(if is_dark { "dark" } else { "light" }));
 }
 
+// ---------- 窗口几何 ----------
+//
+// 只持久化"尺寸 + 最大化标志"，**不做位置持久化**：Slint 1.18 没有暴露显示器/工作区信息，
+// 无法在恢复前判断保存的位置是否仍在可见屏幕内；一旦恢复到屏幕外，无边框窗口会让应用完全不可操作
+// （托盘唤回也只是在屏幕外显示）。尺寸即使偏大也只会被窗口管理器收进可视区域，风险小得多。
+pub struct WindowPrefs {
+    pub width: u32,
+    pub height: u32,
+    pub maximized: bool,
+}
+
+pub fn load_window() -> Option<WindowPrefs> {
+    let text = std::fs::read_to_string(settings_path()?).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    let window = value.get("window")?;
+    Some(WindowPrefs {
+        width: window.get("width")?.as_u64()? as u32,
+        height: window.get("height")?.as_u64()? as u32,
+        maximized: window
+            .get("maximized")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    })
+}
+
+pub fn save_window(width: u32, height: u32, maximized: bool) {
+    update_setting(
+        "window",
+        json!({ "width": width, "height": height, "maximized": maximized }),
+    );
+}
+
 // 读-改-写单个字段：保留文件里其它应用的设置（例如 egui 版的 theme/lang），
 // 避免"切一次主题就把对方的偏好清掉"。
 fn update_setting(key: &str, value: Value) {
