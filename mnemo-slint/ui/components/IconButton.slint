@@ -11,7 +11,7 @@ export enum IconKind {
 // 不使用 stroke，全部由填充矩形 + 填充三角形（Path）组成，避免不同渲染器的描边差异。
 component IconGlyph inherits Rectangle {
     in property <IconKind> kind: IconKind.icon-add;
-    in property <color> color: Theme.text;
+    in property <color> glyph-color: Theme.text;
 
     // 线宽与托架左右内缩
     private property <length> bar: 1.8px;
@@ -27,14 +27,14 @@ component IconGlyph inherits Rectangle {
         y: (root.height - root.bar) / 2;
         width: root.width;
         height: root.bar;
-        background: root.color;
+        background: root.glyph-color;
     }
     if (root.kind == IconKind.icon-add) : Rectangle {
         x: (root.width - root.bar) / 2;
         y: 0;
         width: root.bar;
         height: root.height;
-        background: root.color;
+        background: root.glyph-color;
     }
 
     // ---- 导入：向下的箭头 + 底部托架 ----
@@ -43,7 +43,7 @@ component IconGlyph inherits Rectangle {
         y: 0;
         width: root.bar;
         height: 7px;
-        background: root.color;
+        background: root.glyph-color;
     }
     // Path 会把图形缩放进 width/height 边界，这里让包围盒与元素尺寸完全一致（缩放系数为 1）
     if (root.kind == IconKind.icon-import) : Path {
@@ -52,14 +52,14 @@ component IconGlyph inherits Rectangle {
         width: 9.6px;
         height: 4.8px;
         commands: "M 8 11.4 L 3.2 6.6 L 12.8 6.6 Z";
-        fill: root.color;
+        fill: root.glyph-color;
     }
     if (root.kind == IconKind.icon-import) : Rectangle {
         x: root.inset;
         y: root.height - root.bar;
         width: root.width - root.inset * 2;
         height: root.bar;
-        background: root.color;
+        background: root.glyph-color;
     }
 
     // ---- 导出：顶部托架 + 向上的箭头 ----
@@ -68,7 +68,7 @@ component IconGlyph inherits Rectangle {
         y: 0;
         width: root.width - root.inset * 2;
         height: root.bar;
-        background: root.color;
+        background: root.glyph-color;
     }
     // Path 会把图形缩放进 width/height 边界，这里让包围盒与元素尺寸完全一致（缩放系数为 1）
     if (root.kind == IconKind.icon-export) : Path {
@@ -77,14 +77,14 @@ component IconGlyph inherits Rectangle {
         width: 9.6px;
         height: 4.8px;
         commands: "M 8 4.6 L 12.8 9.4 L 3.2 9.4 Z";
-        fill: root.color;
+        fill: root.glyph-color;
     }
     if (root.kind == IconKind.icon-export) : Rectangle {
         x: (root.width - root.bar) / 2;
         y: 9px;
         width: root.bar;
         height: 7px;
-        background: root.color;
+        background: root.glyph-color;
     }
 }
 
@@ -107,7 +107,7 @@ export component IconButton inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         kind: root.kind;
-        color: Theme.text;
+        glyph-color: Theme.text;
     }
 
     touch := TouchArea {

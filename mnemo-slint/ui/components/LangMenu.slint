@@ -6,11 +6,10 @@ export component LangMenu inherits Rectangle {
     in property <string> label: "English";
     in property <string> code: "en";
     in property <[LangOption]> options;
-    callback selected(string code);
+    callback selected(string);
 
     private property <length> pad-x: 12px;
-    private property <length> caret-w: 9px;
-    private property <length> caret-h: 5px;
+    private property <length> caret-w: 10px;
     private property <length> row-h: 30px;
 
     background: Theme.control-bg;
@@ -42,16 +41,17 @@ export component LangMenu inherits Rectangle {
         vertical-alignment: center;
     }
 
-    // 下拉箭头：向下三角形，展开时旋转 180°
-    caret := Path {
+    // 下拉箭头：Path 元素不支持 rotation-angle，这里用 Text 字符按展开状态切换（▼ / ▲）
+    caret := Text {
         x: parent.width - root.pad-x - root.caret-w;
-        y: (parent.height - root.caret-h) / 2;
+        y: 0;
         width: root.caret-w;
-        height: root.caret-h;
-        commands: "M 0 0 L 9 0 L 4.5 5 Z";
-        fill: Theme.text-muted;
-        rotation-angle: popup.is-open ? 180deg : 0deg;
-        animate rotation-angle { duration: 120ms; }
+        height: parent.height;
+        text: popup.is-open ? "▲" : "▼";
+        color: Theme.text-muted;
+        font-size: 10px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
     }
 
     // 下拉列表：x/y 相对父元素（紧贴按钮下方），高度按选项数量计算

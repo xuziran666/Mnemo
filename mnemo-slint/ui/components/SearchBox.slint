@@ -20,7 +20,7 @@ export component SearchBox inherits Rectangle {
 
     // 点击内边距区域也能聚焦输入框（声明在最前 → 位于底层）
     pad-touch := TouchArea {
-        mouse-cursor: text;
+        mouse-cursor: MouseCursor.text;
         clicked => { input.focus(); }
     }
 

@@ -1,25 +1,38 @@
 import { Theme } from "theme.slint";
 import { State, Strings } from "state.slint";
+// ScrollView / ListView 等视图组件定义在 std-widgets 中，必须显式导入
+import { ScrollView } from "std-widgets.slint";
 import { Toolbar } from "components/Toolbar.slint";
 import { CommandCard } from "components/CommandCard.slint";
 // 托盘组件：此处导入是为了让 build.rs 在同一次编译中一并生成 Tray（SystemTrayIcon 根组件）。
 import { Tray } from "tray.slint";
 
+// 从其它 .slint 文件重导出。
+// slint::include_modules!() 只会把"被编译文件自身导出"的符号暴露给 Rust，
+// 因此全局单例（Theme/State/Strings）、其它文件里的组件（Tray）、结构体与枚举
+// 必须在这里重导出，否则 Rust 侧会报 "cannot find type ..."。
+export { Theme } from "theme.slint";
+export { State, Strings, CommandItem, LangOption } from "state.slint";
+export { IconKind } from "components/IconButton.slint";
+export { Tray } from "tray.slint";
+
 // 主窗口：无边框 + 始终置顶 + 失去焦点自动隐藏（焦点钩子在 Rust 侧，见 src/main.rs）。
 export component MainWindow inherits Window {
     // 供 Rust 侧绑定业务逻辑
-    callback card-activated(int id);
-    callback copy-requested(int id);
-    callback edit-requested(int id);
-    callback delete-requested(int id);
+    callback card-activated(int);
+    callback copy-requested(int);
+    callback edit-requested(int);
+    callback delete-requested(int);
     callback import-clicked();
     callback export-clicked();
     callback new-clicked();
-    callback lang-selected(string code);
+    callback lang-selected(string);
 
     title: "Mnemo";
-    width: 900px;
-    height: 650px;
+    // Window 上 width/height 与 min-width/min-height 互斥：
+    // 初始尺寸用 preferred-*，最小尺寸用 min-*（这样窗口仍可自由缩放）。
+    preferred-width: 900px;
+    preferred-height: 650px;
     min-width: 500px;
     min-height: 400px;
     background: Theme.bg;
@@ -65,26 +78,29 @@ export component MainWindow inherits Window {
         }
 
         // ---------- 命令卡片列表 ----------
-        if (State.commands.length > 0) : card-list := ListView {
+        if (State.commands.length > 0) : card-scroll := ScrollView {
             vertical-stretch: 1;
 
-            // 每个列表项：卡片 + 8px 底间距（ListView 没有 spacing 属性）
-            for item in State.commands : Rectangle {
-                width: card-list.visible-width;
-                height: card.height + Theme.gap-card;
+            // 用 VerticalLayout + spacing 控制卡片间距。
+            // 宽度必须显式跟随可视宽度：否则 ScrollView 的 content-width 会退化成内容最小宽度，卡片会变窄。
+            VerticalLayout {
+                width: card-scroll.visible-width;
+                spacing: Theme.gap-card;
+                // 滚动内容的内边距（窗口本身已有 Theme.pad-window 外边距，这里只留与滚动条的呼吸空间）
+                padding: Theme.gap-card;
 
-                card := CommandCard {
+                // 直接在 for 循环中渲染 CommandCard（布局会负责拉伸宽度，不要再写 width）
+                for item in State.commands : CommandCard {
                     item: item;
                     selected: State.selected-id == item.id;
 
                     card-clicked => {
-                        // 选中态由 UI 自己维护；P1 由 Rust 侧接管键盘导航
-                        State.selected-id = card.item.id;
-                        root.card-activated(card.item.id);
+                        State.selected-id = item.id;
+                        root.card-activated(item.id);
                     }
-                    copy-clicked => { root.copy-requested(card.item.id); }
-                    edit-clicked => { root.edit-requested(card.item.id); }
-                    delete-clicked => { root.delete-requested(card.item.id); }
+                    copy-clicked => { root.copy-requested(item.id); }
+                    edit-clicked => { root.edit-requested(item.id); }
+                    delete-clicked => { root.delete-requested(item.id); }
                 }
             }
         }
