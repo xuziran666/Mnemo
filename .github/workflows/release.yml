@@ -15,54 +15,46 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: ''
+            asset: mnemo-linux-x86_64
           - platform: ubuntu-22.04-arm
-            args: ''
+            asset: mnemo-linux-aarch64
           - platform: windows-2022
-            args: ''
+            asset: mnemo-windows-x86_64.exe
           - platform: windows-11-arm
-            args: ''
+            asset: mnemo-windows-aarch64.exe
           - platform: macos-14
-            args: '--target universal-apple-darwin'
+            asset: mnemo-macos-aarch64
     runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-14' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install Linux dependencies
         if: startsWith(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf xdg-utils
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev \
+            libxcursor-dev libxrandr-dev libxi-dev \
+            libgl1-mesa-dev libegl1-mesa-dev
 
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: cargo build --release -p mnemo-egui
 
-      - uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Stage asset (unix)
+        if: "!startsWith(matrix.platform, 'windows')"
+        run: cp target/release/mnemo "${{ matrix.asset }}"
+
+      - name: Stage asset (windows)
+        if: startsWith(matrix.platform, 'windows')
+        shell: pwsh
+        run: Copy-Item target/release/mnemo.exe "${{ matrix.asset }}"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: v__VERSION__
-          releaseName: 'Mnemo v__VERSION__'
-          releaseDraft: true
-          prerelease: false
-          uploadUpdaterJson: false
-          uploadUpdaterSignatures: false
-          releaseAssetNamePattern: '[name]-[platform]-[arch]-[version][ext]'
-          args: ${{ matrix.args }}
+          draft: true
+          files: ${{ matrix.asset }}

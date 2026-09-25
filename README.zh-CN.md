@@ -15,7 +15,8 @@
 - **键盘优先** — `s` 搜索、`↑`/`↓` 选择、`Enter` 直接复制代码片段（或打开知识笔记查看）、`r` 编辑、`Ctrl+N`/`Cmd+N` 新建。
 - **复制即关闭** — 复制命令后窗口自动关闭，命令已上剪贴板，终端工作流不被打断。
 - **结构化管理** — 每条命令可附带标题、备注和标签，方便整理。
-- **查看模式** — `Enter` 以 Quick Look 方式查看知识笔记（只读、无光标、无工具栏）；查看器内 `Enter` 原位进入编辑，`Ctrl+S` 保存，`Esc` 返回。每条内容分为**代码片段**（用于复制）与**知识笔记**（用于查看）两种类型。知识笔记支持富 Markdown 渲染：GFM 表格、KaTeX 数学公式、代码高亮。
+- **查看模式** — `Enter` 以只读方式查看知识笔记（纯文本）；查看器内 `Enter` 原位进入编辑，`Ctrl+S` 保存，`Esc` 返回。每条内容分为**代码片段**（用于复制）与**知识笔记**（用于查看）两种类型。
+- **纯 Rust 实现** — 使用 [`egui`](https://github.com/emilk/egui) 原生桌面界面，无 Web 运行时、无 Node.js。
 
 ## 截图
 
@@ -23,28 +24,23 @@
 
 ## 安装
 
-### 预编译安装包
+### 预编译二进制
 
 从 [GitHub Releases](https://github.com/xuziran666/Mnemo/releases) 下载：
 
-- **Linux**：AppImage / deb / rpm（x86_64 & aarch64）
-- **Windows**：exe / msi
-- **macOS**：dmg / app
-
-### Arch Linux（AUR）
-
-即将上架：`mnemo-cm`（源码编译）、`mnemo-cm-bin`（预编译二进制）。
+- **Linux**：x86_64 / aarch64 可执行文件
+- **Windows**：x86_64 / aarch64 可执行文件
+- **macOS**：Apple Silicon 可执行文件
 
 ### 源码构建
 
-需要 [Node.js](https://nodejs.org) 18+、[pnpm](https://pnpm.io) 与 [Rust](https://rustup.rs)（stable）。
-
-**Linux** 另需安装 [Tauri 系统依赖](https://tauri.app/start/prerequisites/)（如 `libwebkit2gtk-4.1-dev`、`librsvg2-dev` 等）。
+只需 [Rust](https://rustup.rs)（stable）。
 
 ```bash
-pnpm install
-pnpm run tauri build
+cargo build --release -p mnemo-egui
 ```
+
+生成的二进制位于 `target/release/mnemo`（Windows 为 `mnemo.exe`）。
 
 ## 快捷键
 
@@ -73,9 +69,16 @@ pnpm run tauri build
 ## 开发
 
 ```bash
-pnpm install          # 安装依赖
-pnpm run tauri dev    # 热重载开发
-pnpm run tauri build  # 构建发布包
+cargo run -p mnemo-egui      # 编译并运行
+cargo build --release -p mnemo-egui
+cargo test --workspace
+```
+
+### 项目结构
+
+```
+mnemo-core/   # SQLite 持久化与业务逻辑（不依赖 GUI 框架）
+mnemo-egui/   # egui/eframe 桌面应用
 ```
 
 ## 数据存储
@@ -92,9 +95,11 @@ pnpm run tauri build  # 构建发布包
 
 ## 技术栈
 
-- [Tauri 2](https://tauri.app) + [Rust](https://www.rust-lang.org)
-- [React 19](https://react.dev) + [TypeScript](https://www.typescriptlang.org) + [Vite](https://vitejs.dev)
+- [Rust](https://www.rust-lang.org)
+- [egui / eframe](https://github.com/emilk/egui) — 原生立即模式 GUI
 - [SQLite](https://www.sqlite.org)（通过 [rusqlite](https://github.com/rusqlite/rusqlite) 集成）
+- [rfd](https://github.com/PolyMeilex/rfd) — 原生文件对话框
+- [arboard](https://github.com/1Password/arboard) — 系统剪贴板
 
 ## 许可证
 

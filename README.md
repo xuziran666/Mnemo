@@ -11,11 +11,12 @@
 ## Features
 
 - **Local first** — All data stays on your machine in a SQLite database. No cloud, no accounts.
-- **Full-text search** — Fuzzy search across title, command, note, and tags.
+- **Full-text search** — Fuzzy search across title, content, note, and tags.
 - **Keyboard-first** — `s` to search, `↑`/`↓` to navigate, `Enter` on a snippet copies it, `Enter` on a note opens the viewer, `r` to edit, `Ctrl+N`/`Cmd+N` to add.
 - **Copy & close** — Copying a command puts it on your clipboard and closes the window instantly, so your terminal workflow is never interrupted.
 - **Organized** — Each command can carry a title, note, and tags for easy management.
-- **Viewer mode** — Press `Enter` to view a note like Quick Look (read-only, no caret, no toolbar); press `Enter` in the viewer to switch to editing in place, `Ctrl+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed). Notes render rich Markdown: GFM tables, KaTeX math, and syntax-highlighted code blocks.
+- **Viewer mode** — Press `Enter` to view a note as plain text (read-only); press `Enter` in the viewer to switch to editing in place, `Ctrl+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed).
+- **Pure Rust** — Native desktop UI built with [`egui`](https://github.com/emilk/egui); no web runtime, no Node.js.
 
 ## Screenshot
 
@@ -27,24 +28,19 @@
 
 Download from [GitHub Releases](https://github.com/xuziran666/Mnemo/releases):
 
-- **Linux**: AppImage / deb / rpm (x86_64 & aarch64)
-- **Windows**: exe / msi
-- **macOS**: dmg / app
-
-### Arch Linux (AUR)
-
-Coming soon: `mnemo-cm` (build from source), `mnemo-cm-bin` (prebuilt binary).
+- **Linux**: x86_64 / aarch64 executable
+- **Windows**: x86_64 / aarch64 executable
+- **macOS**: Apple Silicon executable
 
 ### Build from source
 
-Requires [Node.js](https://nodejs.org) 18+, [pnpm](https://pnpm.io) and [Rust](https://rustup.rs) (stable).
-
-**Linux** additionally needs the [Tauri system dependencies](https://tauri.app/start/prerequisites/) (`libwebkit2gtk-4.1-dev`, `librsvg2-dev`, etc.).
+Requires [Rust](https://rustup.rs) (stable).
 
 ```bash
-pnpm install
-pnpm run tauri build
+cargo build --release -p mnemo-egui
 ```
+
+The binary is produced at `target/release/mnemo` (`mnemo.exe` on Windows).
 
 ## Usage
 
@@ -73,9 +69,16 @@ pnpm run tauri build
 ## Development
 
 ```bash
-pnpm install          # install dependencies
-pnpm run tauri dev    # run with hot reload
-pnpm run tauri build  # produce release bundles
+cargo run -p mnemo-egui      # run with hot reload disabled (rebuild on change)
+cargo build --release -p mnemo-egui
+cargo test --workspace
+```
+
+### Project layout
+
+```
+mnemo-core/   # SQLite persistence and business logic (framework-agnostic)
+mnemo-egui/   # egui/eframe desktop application
 ```
 
 ## Data Storage
@@ -92,9 +95,11 @@ Back up this file to keep your commands.
 
 ## Tech Stack
 
-- [Tauri 2](https://tauri.app) + [Rust](https://www.rust-lang.org)
-- [React 19](https://react.dev) + [TypeScript](https://www.typescriptlang.org) + [Vite](https://vitejs.dev)
+- [Rust](https://www.rust-lang.org)
+- [egui / eframe](https://github.com/emilk/egui) — native immediate-mode GUI
 - [SQLite](https://www.sqlite.org) (bundled via [rusqlite](https://github.com/rusqlite/rusqlite))
+- [rfd](https://github.com/PolyMeilex/rfd) — native file dialogs
+- [arboard](https://github.com/1Password/arboard) — system clipboard
 
 ## License
 

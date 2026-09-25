@@ -1,0 +1,34 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "运行 Mnemo",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"run",
+				"-p",
+				"mnemo-egui"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"detail": "编译并运行纯 Rust / egui 版 Mnemo"
+		},
+		{
+			"label": "构建发布",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"build",
+				"--release",
+				"-p",
+				"mnemo-egui"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"detail": "生成 release 可执行文件"
+		}
+	]
+}
