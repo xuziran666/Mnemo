@@ -1,10 +1,12 @@
 import { Theme } from "../theme.slint";
 
-// 图标类型：导入（箭头向下收入托架）/ 导出（箭头向上送出）/ 新建
+// 图标类型：导入（箭头向下收入托架）/ 导出（箭头向上送出）/ 新建 / 最小化 / 关闭
 export enum IconKind {
     icon-import,
     icon-export,
     icon-add,
+    icon-minimize,
+    icon-close,
 }
 
 // 图标绘制区：统一按 16x16 的局部坐标编写（与 Theme.icon-size 对应）。
@@ -35,6 +37,34 @@ component IconGlyph inherits Rectangle {
         width: root.bar;
         height: root.height;
         background: root.glyph-color;
+    }
+
+    // ---- 最小化：单条横杠（无边框窗口没有系统标题栏，需要自己画）----
+    if (root.kind == IconKind.icon-minimize) : Rectangle {
+        x: (root.width - 10px) / 2;
+        y: (root.height - root.bar) / 2;
+        width: 10px;
+        height: root.bar;
+        background: root.glyph-color;
+    }
+
+    // ---- 关闭：两条 45° 交叉的平行四边形（仍是纯填充，不用 stroke）----
+    // 每条斜杠与其它图标同粗细（1.8px 垂直宽度）；包围盒与元素尺寸一致 → Path 缩放系数为 1。
+    if (root.kind == IconKind.icon-close) : Path {
+        x: 2.2px;
+        y: 2.2px;
+        width: 11.6px;
+        height: 11.6px;
+        commands: "M 2.2 3.473 L 3.473 2.2 L 13.8 12.527 L 12.527 13.8 Z";
+        fill: root.glyph-color;
+    }
+    if (root.kind == IconKind.icon-close) : Path {
+        x: 2.2px;
+        y: 2.2px;
+        width: 11.6px;
+        height: 11.6px;
+        commands: "M 2.2 12.527 L 3.473 13.8 L 13.8 3.473 L 12.527 2.2 Z";
+        fill: root.glyph-color;
     }
 
     // ---- 导入：向下的箭头 + 底部托架 ----

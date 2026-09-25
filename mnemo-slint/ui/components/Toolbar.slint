@@ -16,6 +16,9 @@ export component Toolbar inherits Rectangle {
     callback import-clicked();
     callback export-clicked();
     callback new-clicked();
+    // 窗口控制：无边框窗口没有系统标题栏，最小化 / 关闭只能自己做
+    callback minimize-clicked();
+    callback close-clicked();
 
     background: transparent;
     min-height: Theme.control-h;
@@ -53,6 +56,16 @@ export component Toolbar inherits Rectangle {
         IconButton {
             kind: IconKind.icon-add;
             clicked => { root.new-clicked(); }
+        }
+
+        // 窗口控制：最小化到任务栏 / 隐藏到托盘（关闭 ≠ 退出进程，退出走托盘菜单）
+        IconButton {
+            kind: IconKind.icon-minimize;
+            clicked => { root.minimize-clicked(); }
+        }
+        IconButton {
+            kind: IconKind.icon-close;
+            clicked => { root.close-clicked(); }
         }
     }
 }

@@ -1,5 +1,7 @@
 // 系统托盘。
-// 主窗口为无边框 + 失去焦点自动隐藏，托盘是唯一的唤回入口，因此菜单至少要有"显示"与"退出"。
+// 主窗口为无边框 + 失去焦点自动隐藏，托盘是唯一的唤回入口，因此：
+// 1) 右键菜单必须有"显示主界面"与"退出"（文案 P1 接入 i18n 后由 Rust 侧覆盖）；
+// 2) 左键点击图标也要能唤回窗口（Windows 支持 clicked，右键才是弹菜单）。
 export component Tray inherits SystemTrayIcon {
     // 托盘图标与菜单文案（文案 P1 接入 i18n 后可由 Rust 侧覆盖）
     in property <string> label-show: "Show Mnemo";
@@ -7,9 +9,14 @@ export component Tray inherits SystemTrayIcon {
 
     icon: @image-url("../assets/icons/tray.png");
     tooltip: "Mnemo";
+    // title 在 Windows 上无可见效果，但 Linux（StatusNotifierItem Title）与 macOS（图标旁文字）会用
+    title: "Mnemo";
 
     callback show-window();
     callback quit();
+
+    // 左键点击托盘图标 → 唤回窗口（Windows：左键走 clicked，右键弹菜单）
+    clicked => { root.show-window(); }
 
     // SystemTrayIcon 必须恰好包含一个 Menu 子元素
     Menu {
