@@ -1,6 +1,6 @@
 [package]
 name = "mnemo"
-version = "0.3.4"
+version = "0.3.5"
 description = "Mnemo - a local command manager"
 authors = ["xuziran666"]
 edition = "2021"
