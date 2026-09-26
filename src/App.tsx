@@ -9,6 +9,7 @@ import CommandList from "./components/CommandList";
 import { ExportIcon, ImportIcon, PlusIcon } from "./components/icons";
 import EntryEditor from "./components/EntryEditor";
 import SearchBox from "./components/SearchBox";
+import { ThemeButton } from "./components/ThemeButton";
 import Viewer from "./components/Viewer";
 import { useClampSelectedIndex } from "./hooks/useClampSelectedIndex";
 import { useCommandHotkeys } from "./hooks/useCommandHotkeys";
@@ -218,6 +219,7 @@ export default function App() {
         >
           {t("lang.button")}
         </button>
+        <ThemeButton />
         <button className="add" title={t("io.import")} onClick={() => void handleImport()}>
           <ImportIcon />
         </button>

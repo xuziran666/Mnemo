@@ -5,6 +5,48 @@
   --text: #e6e6e6;
   --muted: #9a9a9a;
   --accent: #5b7cfa;
+
+  /* 以下为深色主题取值，浅色覆盖见下方 [data-theme="light"]。 */
+  --surface-2: #333;             /* 选中态、标签、hover 底色、表头、kbd */
+  --code-bg: #333;               /* 代码块底色，须与 highlight.js 主题底色一致 */
+  --code-fg: #9ecbff;
+  --toast-bg: #000;
+  --toast-fg: #fff;
+  --row-alt: rgba(255, 255, 255, 0.03);
+  --badge-bg: #1f3a8a;
+  --badge-fg: #9ecbff;
+  --badge-note-bg: #3b1f6e;
+  --badge-note-fg: #d0b4ff;
+  --accent-hover: #6a8cff;
+  --ok: #7bf0b0;
+  --warn: #ffb86c;
+  --danger: #ff6b6b;
+}
+
+/* 必须放在 :root 之后：两者特异性都是 (0,1,0)，靠源码顺序让浅色生效。
+   浅色下 --ok/--warn/--danger 换成深色语义值，深色版的荧光色在白底上不可读。 */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+
+  --surface-2: #eaeef2;
+  --code-bg: #f6f8fa;            /* 对齐 highlight.js github.css 的底色 */
+  --code-fg: #24292e;
+  --toast-bg: #1f2328;
+  --toast-fg: #ffffff;
+  --row-alt: rgba(27, 31, 36, 0.05);
+  --badge-bg: #ddf4ff;
+  --badge-fg: #0969da;
+  --badge-note-bg: #fbefff;
+  --badge-note-fg: #8250df;
+  --accent-hover: #3f63e8;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --danger: #cf222e;
 }
 
 * {
@@ -122,7 +164,7 @@ body {
 
 .item.selected {
   border-color: var(--accent);
-  background: #333;
+  background: var(--surface-2);
 }
 
 .item-main {
@@ -139,7 +181,7 @@ body {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #9ecbff;
+  color: var(--code-fg);
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   font-size: 13px;
 }
@@ -157,7 +199,7 @@ body {
 }
 
 .tag {
-  background: #333;
+  background: var(--surface-2);
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 12px;
@@ -184,7 +226,7 @@ body {
 }
 
 .act:hover {
-  background: #333;
+  background: var(--surface-2);
   color: var(--text);
 }
 
@@ -193,15 +235,15 @@ body {
 }
 
 .act.copy:hover {
-  color: #7bf0b0;
+  color: var(--ok);
 }
 
 .act.edit:hover {
-  color: #ffb86c;
+  color: var(--warn);
 }
 
 .act.delete:hover {
-  color: #ff6b6b;
+  color: var(--danger);
 }
 
 
@@ -210,8 +252,8 @@ body {
   left: 50%;
   bottom: 20px;
   transform: translateX(-50%);
-  background: #000;
-  color: #fff;
+  background: var(--toast-bg);
+  color: var(--toast-fg);
   padding: 8px 16px;
   border-radius: 6px;
   font-size: 13px;
@@ -251,7 +293,7 @@ body {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #9ecbff;
+  color: var(--code-fg);
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
@@ -310,16 +352,16 @@ body {
    而 highlight.js 主题的 .hljs-keyword 等令牌色只有 (0,1,0)，
    若不排除 pre 内的 code，整段代码都会被这条规则压成同一个颜色，语法高亮形同虚设。 */
 .markdown-body :not(pre) > code {
-  background: #333;
+  background: var(--code-bg);
   border-radius: 4px;
   padding: 1px 5px;
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   font-size: 12px;
-  color: #9ecbff;
+  color: var(--code-fg);
 }
 
 .markdown-body pre {
-  background: #333;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px;
@@ -347,12 +389,12 @@ body {
 }
 
 .markdown-body th {
-  background: #333;
+  background: var(--surface-2);
   font-weight: 600;
 }
 
 .markdown-body tr:nth-child(even) td {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--row-alt);
 }
 
 .markdown-body blockquote {
@@ -387,7 +429,7 @@ body {
 }
 
 .hint kbd {
-  background: #333;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 2px 6px;
@@ -401,15 +443,15 @@ body {
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #1f3a8a;
-  color: #9ecbff;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
   margin-right: 6px;
   vertical-align: middle;
 }
 
 .badge.note {
-  background: #3b1f6e;
-  color: #d0b4ff;
+  background: var(--badge-note-bg);
+  color: var(--badge-note-fg);
 }
 
 .seg {
@@ -502,7 +544,7 @@ body {
 }
 
 .btn.primary:hover {
-  background: #6a8cff;
+  background: var(--accent-hover);
 }
 
 .btn:disabled {

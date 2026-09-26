@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- highlight.js 主题占位。浅色/深色两套官方主题选择器同特异性，
+         无法靠外层包裹区分，只能整体换 stylesheet，href 由 NoteView 组件改写。
+         这里不能写 href=""，否则浏览器会把当前页面 URL 当作样式表请求。 -->
+    <link id="hljs-theme" rel="stylesheet" />
+    <!-- 主题必须在首屏 CSS 之前同步应用，否则浅色用户会看到一帧深色背景。
+         这段逻辑是 src/theme.ts 解析初值的唯一实现，两处需同步维护。 -->
+    <script>
+      (function () {
+        var v = localStorage.getItem("mnemo-theme");
+        var t =
+          v === "light" || v === "dark"
+            ? v
+            : matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+        var el = document.documentElement;
+        el.dataset.theme = t;
+        el.style.colorScheme = t;
+      })();
+    </script>
     <title>Mnemo</title>
   </head>
 
