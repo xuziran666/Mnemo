@@ -305,7 +305,11 @@ body {
   margin: 2px 0;
 }
 
-.markdown-body code {
+/* 行内代码着色。
+   必须用 :not(pre) 限定作用域：这条规则的选择器特异性是 (0,1,1)，
+   而 highlight.js 主题的 .hljs-keyword 等令牌色只有 (0,1,0)，
+   若不排除 pre 内的 code，整段代码都会被这条规则压成同一个颜色，语法高亮形同虚设。 */
+.markdown-body :not(pre) > code {
   background: #333;
   border-radius: 4px;
   padding: 1px 5px;

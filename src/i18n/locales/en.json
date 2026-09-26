@@ -24,6 +24,7 @@
   },
   "toast": {
     "copyFailed": "Copy failed",
+    "loadFailed": "Failed to load full content",
     "saved": "Saved",
     "exported": "Exported",
     "imported": "Imported {{count}} items",

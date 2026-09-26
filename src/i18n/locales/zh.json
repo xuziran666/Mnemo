@@ -24,6 +24,7 @@
   },
   "toast": {
     "copyFailed": "复制失败",
+    "loadFailed": "加载完整内容失败",
     "saved": "已保存",
     "exported": "已导出",
     "imported": "已导入 {{count}} 条",

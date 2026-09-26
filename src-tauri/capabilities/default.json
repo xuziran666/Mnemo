@@ -6,12 +6,15 @@
   "permissions": [
     "core:default",
     "core:window:allow-close",
+    "core:window:allow-set-size",
     "clipboard-manager:allow-write-text",
     "dialog:allow-message",
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:default",
     "fs:allow-read-file",
-    "fs:allow-write-file"
+    "fs:allow-write-file",
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
   ]
 }
