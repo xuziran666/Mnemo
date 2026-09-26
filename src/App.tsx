@@ -212,6 +212,7 @@ export default function App() {
             listActive.current = false;
           }}
         />
+        <ThemeButton />
         <button
           className="lang"
           title={t("lang.title")}
@@ -219,7 +220,6 @@ export default function App() {
         >
           {t("lang.button")}
         </button>
-        <ThemeButton />
         <button className="add" title={t("io.import")} onClick={() => void handleImport()}>
           <ImportIcon />
         </button>
