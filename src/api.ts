@@ -7,6 +7,12 @@ export function listCommands(query: string): Promise<Command[]> {
   return invoke("list_commands", { query });
 }
 
+// 列表返回的 content 是后端在 SQL 层裁剪过的预览长度，
+// 复制 / 查看 / 编辑前需要按 id 取回完整记录。
+export function getCommand(id: number): Promise<Command> {
+  return invoke("get_command", { id });
+}
+
 export function createCommand(input: NewCommand): Promise<Command> {
   return invoke("create_command", { input });
 }

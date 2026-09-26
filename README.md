@@ -11,8 +11,8 @@
 ## Features
 
 - **Local first** — All data stays on your machine in a SQLite database. No cloud, no accounts.
-- **Full-text search** — Fuzzy search across title, command, note, and tags.
-- **Keyboard-first** — `s` to search, `↑`/`↓` to navigate, `Enter` on a snippet copies it, `Enter` on a note opens the viewer, `r` to edit, `Ctrl+N`/`Cmd+N` to add.
+- **Instant search** — ASCII case-insensitive substring match across title, command, note, and tags, backed by SQLite. It is a plain `LIKE '%keyword%'` lookup, not a fuzzy or full-text index.
+- **Keyboard-first** — `s` to focus search, `Enter` in the search box to hand the keyboard to the list, `↑`/`↓` to navigate, `Enter` on a snippet copies it, `Enter` on a note opens the viewer, `r` to edit, `Ctrl+N`/`Cmd+N` to add.
 - **Copy & close** — Copying a command puts it on your clipboard and closes the window instantly, so your terminal workflow is never interrupted.
 - **Organized** — Each command can carry a title, note, and tags for easy management.
 - **Viewer mode** — Press `Enter` to view a note like Quick Look (read-only, no caret, no toolbar); press `Enter` in the viewer to switch to editing in place, `Ctrl+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed). Notes render rich Markdown: GFM tables, KaTeX math, and syntax-highlighted code blocks.
@@ -50,16 +50,20 @@ pnpm run tauri build
 
 | Key | Action |
 |---|---|
-| `s` | Focus search box |
-| `↑` / `↓` | Navigate list |
-| `Enter` | Copy selected snippet & close window, or open viewer for a note |
+| `s` | Focus search box and leave list navigation |
+| `Enter` (in search box) | Enter list navigation mode, selecting the first row |
+| `↑` / `↓` | Navigate list (requires list navigation mode) |
+| `Enter` (in list) | Copy selected snippet & close window, or open viewer for a note |
 | `c` | Copy selected snippet & close window (snippets only) |
 | `v` | View selected command |
 | `d` | Delete selected command (with confirmation) |
-| `Esc` | Close window (from list) |
 | `r` | Edit selected command |
+| `Esc` | Close window (from list) |
 | `Ctrl+N` / `Cmd+N` | Add a new command |
 | `+` | Add a new command (mouse) |
+
+List navigation mode is deliberately explicit: arrow keys move the caret while you are typing, so
+pressing `Enter` in the search box is what hands the keyboard over to the result list.
 
 ### In viewer
 

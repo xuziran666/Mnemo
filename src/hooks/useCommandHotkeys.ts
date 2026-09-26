@@ -65,40 +65,45 @@ export function useCommandHotkeys({
         onClose();
         return;
       }
-      if (e.key === "s" || e.key === "S") {
-        if (document.activeElement === searchRef.current) return;
-        e.preventDefault();
-        listActiveRef.current = false;
-        searchRef.current?.focus();
-        return;
-      }
-      if (e.key === "r" || e.key === "R") {
-        if (!listActiveRef.current) return;
-        e.preventDefault();
-        const cmd = commands[selectedIndex];
-        if (cmd) onEdit(cmd);
-        return;
-      }
-      if (e.key === "c" || e.key === "C") {
-        if (!listActiveRef.current) return;
-        e.preventDefault();
-        const cmd = commands[selectedIndex];
-        if (cmd && cmd.kind === KIND_SNIPPET) onCopy(cmd);
-        return;
-      }
-      if (e.key === "v" || e.key === "V") {
-        if (!listActiveRef.current) return;
-        e.preventDefault();
-        const cmd = commands[selectedIndex];
-        if (cmd) onOpen(cmd);
-        return;
-      }
-      if (e.key === "d" || e.key === "D") {
-        if (!listActiveRef.current) return;
-        e.preventDefault();
-        const cmd = commands[selectedIndex];
-        if (cmd) onDelete(cmd);
-        return;
+      // 单字母快捷键只在「无修饰键」时生效。
+      // 否则 Ctrl/⌘+C/V/R/D/S 会被劫持成复制片段/打开查看器/编辑/删除/聚焦搜索框，
+      // 用户无法使用系统级组合键，Ctrl+R 的窗口刷新也会被吞掉。
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "s" || e.key === "S") {
+          if (document.activeElement === searchRef.current) return;
+          e.preventDefault();
+          listActiveRef.current = false;
+          searchRef.current?.focus();
+          return;
+        }
+        if (e.key === "r" || e.key === "R") {
+          if (!listActiveRef.current) return;
+          e.preventDefault();
+          const cmd = commands[selectedIndex];
+          if (cmd) onEdit(cmd);
+          return;
+        }
+        if (e.key === "c" || e.key === "C") {
+          if (!listActiveRef.current) return;
+          e.preventDefault();
+          const cmd = commands[selectedIndex];
+          if (cmd && cmd.kind === KIND_SNIPPET) onCopy(cmd);
+          return;
+        }
+        if (e.key === "v" || e.key === "V") {
+          if (!listActiveRef.current) return;
+          e.preventDefault();
+          const cmd = commands[selectedIndex];
+          if (cmd) onOpen(cmd);
+          return;
+        }
+        if (e.key === "d" || e.key === "D") {
+          if (!listActiveRef.current) return;
+          e.preventDefault();
+          const cmd = commands[selectedIndex];
+          if (cmd) onDelete(cmd);
+          return;
+        }
       }
       if (e.key.toLowerCase() === "n" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();

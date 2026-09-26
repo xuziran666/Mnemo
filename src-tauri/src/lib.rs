@@ -1,7 +1,7 @@
 mod commands;
 mod db;
 
-use commands::{create_command, delete_command, export_commands, import_commands, list_commands, update_command, Db};
+use commands::{create_command, delete_command, export_commands, get_command, import_commands, list_commands, update_command, Db};
 use tauri::Manager;
 
 // Tauri 应用启动入口，负责初始化插件、数据库连接和命令注册。
@@ -12,6 +12,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // 在 setup 阶段创建 app_data_dir 下的 SQLite 文件，并把连接挂载到全局应用状态中。
             let dir = app
@@ -28,6 +29,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_commands,
+            get_command,
             create_command,
             update_command,
             delete_command,

@@ -9,6 +9,10 @@
     "button": "EN",
     "title": "切换语言"
   },
+  "theme": {
+    "light": "浅色",
+    "dark": "深色"
+  },
   "empty": {
     "noCommands": "没有找到命令"
   },
@@ -24,6 +28,7 @@
   },
   "toast": {
     "copyFailed": "复制失败",
+    "loadFailed": "加载完整内容失败",
     "saved": "已保存",
     "exported": "已导出",
     "imported": "已导入 {{count}} 条",

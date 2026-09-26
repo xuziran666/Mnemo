@@ -63,3 +63,7 @@ jobs:
 
       - name: Cargo check
         run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      # db.rs 里的 schema 迁移单测此前从未在 CI 执行过，迁移逻辑改动没有回归保护。
+      - name: Cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml

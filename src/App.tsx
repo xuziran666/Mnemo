@@ -4,11 +4,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
-import { createCommand, deleteCommand, exportCommands, importCommands, listCommands, updateCommand } from "./api";
+import { createCommand, deleteCommand, exportCommands, getCommand, importCommands, listCommands, updateCommand } from "./api";
 import CommandList from "./components/CommandList";
 import { ExportIcon, ImportIcon, PlusIcon } from "./components/icons";
 import EntryEditor from "./components/EntryEditor";
 import SearchBox from "./components/SearchBox";
+import { ThemeButton } from "./components/ThemeButton";
 import Viewer from "./components/Viewer";
 import { useClampSelectedIndex } from "./hooks/useClampSelectedIndex";
 import { useCommandHotkeys } from "./hooks/useCommandHotkeys";
@@ -29,12 +30,17 @@ export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const toastTimer = useRef<number | null>(null);
   const listActive = useRef(false);
+  const loadSeq = useRef(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   // load() 是从 UI 到 Tauri 后端的桥梁，并在每次变更后刷新列表。
+  // 查询结果按请求序号落地：连续输入时先发出的请求可能后返回，
+  // 若不丢弃过期响应，旧结果会覆盖新结果，列表内容与搜索框不一致。
   const load = useCallback(async (q: string) => {
+    const seq = ++loadSeq.current;
     const result = await listCommands(q);
+    if (seq !== loadSeq.current) return;
     setCommands(result);
   }, []);
 
@@ -48,9 +54,9 @@ export default function App() {
     listActiveRef: listActive,
     searchRef,
     setSelectedIndex,
-    onOpen: setViewing,
+    onOpen: handleOpen,
     onOpenAdd: () => setEditing("new"),
-    onEdit: setEditing,
+    onEdit: handleEdit,
     onCopy: handleCopy,
     onDelete: handleDelete,
     onClose: () => {
@@ -72,10 +78,39 @@ export default function App() {
     searchRef.current?.focus();
   }
 
+  // 列表接口的 content 在 SQL 层被裁剪成预览长度（见 commands.rs 的 list_content_expr），
+  // 因此打开查看器、进入编辑或复制前必须按 id 取回完整记录。
+  // 这里刻意不回退到列表里的截断内容：一旦取回失败就把截断内容当成正文，
+  // 用户在编辑器里一保存，被截断的正文就会覆盖数据库里的原文，造成数据丢失。
+  async function fetchFull(cmd: Command): Promise<Command | null> {
+    try {
+      return await getCommand(cmd.id);
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleOpen(cmd: Command) {
+    const full = await fetchFull(cmd);
+    if (full) setViewing(full);
+    else showToast(t("toast.loadFailed"));
+  }
+
+  async function handleEdit(cmd: Command) {
+    const full = await fetchFull(cmd);
+    if (full) setEditing(full);
+    else showToast(t("toast.loadFailed"));
+  }
+
   // 复制一段代码片段时，应将原始内容推送到系统剪贴板并立即关闭应用程序。
   async function handleCopy(cmd: Command) {
+    const full = await fetchFull(cmd);
+    if (!full) {
+      showToast(t("toast.loadFailed"));
+      return;
+    }
     try {
-      await writeText(cmd.content);
+      await writeText(full.content);
       await getCurrentWindow().close();
     } catch {
       showToast(t("toast.copyFailed"));
@@ -169,7 +204,15 @@ export default function App() {
   return (
     <div className="app">
       <div className="toolbar">
-        <SearchBox query={query} onChange={setQuery} inputRef={searchRef} />
+        <SearchBox
+          query={query}
+          onChange={setQuery}
+          inputRef={searchRef}
+          onFocus={() => {
+            listActive.current = false;
+          }}
+        />
+        <ThemeButton />
         <button
           className="lang"
           title={t("lang.title")}
@@ -195,9 +238,9 @@ export default function App() {
         commands={commands}
         selectedIndex={selectedIndex}
         listRef={listRef}
-        onOpen={setViewing}
+        onOpen={handleOpen}
         onCopy={handleCopy}
-        onEdit={setEditing}
+        onEdit={handleEdit}
         onDelete={handleDelete}
       />
       {toast && <div className="toast">{toast}</div>}
