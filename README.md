@@ -13,7 +13,7 @@
 - **Local first** — All data stays on your machine in a SQLite database. No cloud, no accounts.
 - **Full-text search** — Fuzzy search across title, content, note, and tags.
 - **Keyboard-first** — `s` to search, `↑`/`↓` to navigate, `Enter` on a snippet copies it, `Enter` on a note opens the viewer, `r` to edit, `Ctrl+N`/`Cmd+N` to add.
-- **Copy & close** — Copying a command puts it on your clipboard and closes the window instantly, so your terminal workflow is never interrupted.
+- **Copy & close** — Copying a command puts it on your clipboard and closes the app instantly, so your terminal workflow is never interrupted.
 - **Organized** — Each command can carry a title, note, and tags for easy management.
 - **Light & dark theme** — Toggle between light and dark mode; your choice is remembered.
 - **Viewer mode** — Press `v` (or the **View** button) to read an entry as plain text (read-only); press `Enter` in the viewer to switch to editing in place, `Ctrl+S`/`Cmd+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed).
@@ -28,7 +28,7 @@
 | Crate | Role |
 |---|---|
 | `mnemo-core` | SQLite persistence and business logic (framework-agnostic, unit-tested) |
-| `mnemo-slint` | Desktop application: [Slint](https://slint.dev) UI, frameless window with a self-drawn title bar, system tray, light/dark theme |
+| `mnemo-slint` | Desktop application: [Slint](https://slint.dev) UI, frameless window with a self-drawn title bar, light/dark theme |
 
 > An earlier [egui](https://github.com/emilk/egui)/eframe frontend (`mnemo-egui`) has been removed.
 > Its last state is preserved in the git tag `legacy-egui`
@@ -38,8 +38,8 @@
 
 - The window is frameless with a custom title bar: drag it to move, double-click the title bar to
   maximize/restore, and use the buttons on its right edge for minimize / maximize / close.
-- Closing or losing focus **hides** the window (the process keeps running); bring it back from the tray
-  (left-click the icon, or the tray menu).
+- Closing the window (or `Alt+F4`) **exits the app**. There is no tray icon, and losing focus leaves
+  the window open.
 - `Enter` copies the selected snippet or opens the selected note in the viewer; use `v` (or the **View** button) to read any entry without copying.
 - The theme is dark by default, toggled in the toolbar and remembered. Preferences live in
   `settings.json` next to the database.
@@ -70,13 +70,13 @@ The binary is produced at `target/release/mnemo` (`mnemo.exe` on Windows).
 |---|---|
 | `s` | Focus the search box |
 | `↑` / `↓` | Move the selection (the list scrolls to follow) |
-| `Enter` | Copy the selected snippet & hide the window, or open a selected note in the viewer |
-| `c` | Copy the selected command (notes included) & hide the window |
+| `Enter` | Copy the selected snippet & exit the app, or open a selected note in the viewer |
+| `c` | Copy the selected command (notes included) & exit the app |
 | `v` | Open the read-only viewer for the selected command |
 | `r` | Edit the selected command |
 | `d` | Delete the selected command (confirmation required) |
 | `Ctrl+N` / `Cmd+N` | Add a new command |
-| `Esc` | Close the open viewer/dialog, otherwise hide the window |
+| `Esc` | Close the open viewer/dialog; with no overlay it does nothing |
 
 ### In a dialog
 
@@ -98,7 +98,7 @@ cargo test --workspace
 
 ```
 mnemo-core/   # SQLite persistence and business logic (framework-agnostic)
-mnemo-slint/  # Slint desktop application (UI + window/tray integration)
+mnemo-slint/  # Slint desktop application (UI + window integration)
 ```
 
 ## Data Storage
@@ -124,7 +124,7 @@ Preferences are stored next to it in `settings.json` (shared by both frontends):
 ## Tech Stack
 
 - [Rust](https://www.rust-lang.org)
-- [Slint](https://slint.dev) — declarative native GUI (custom title bar, tray, theming)
+- [Slint](https://slint.dev) — declarative native GUI (custom title bar, theming)
 - [SQLite](https://www.sqlite.org) (bundled via [rusqlite](https://github.com/rusqlite/rusqlite))
 - [rfd](https://github.com/PolyMeilex/rfd) — native file dialogs
 - [arboard](https://github.com/1Password/arboard) — system clipboard

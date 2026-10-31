@@ -1,4 +1,4 @@
-// 入口为 ui/main.slint；ui/tray.slint 由 main.slint 导入，会在同一次编译中一并生成。
+// 入口为 ui/main.slint；ui/tray.slint 自 0.4.1 起不再参与编译（托盘已移除）。
 fn main() {
     slint_build::compile("ui/main.slint").expect("failed to compile ui/main.slint");
 }

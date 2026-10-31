@@ -1,9 +1,9 @@
 use slint::ComponentHandle;
 
 use crate::i18n::I18n;
-use crate::{MainWindow, Strings, Tray};
+use crate::{MainWindow, Strings};
 
-// 把语言资源写进界面文案与托盘菜单。
+// 把语言资源写进界面文案。
 //
 // 新增一条文案的固定三步：
 // 1) locales/en.json 与 zh.json 各加一个 key（如 toast.saved）；
@@ -48,10 +48,4 @@ pub fn apply(ui: &MainWindow, i18n: &I18n) {
     // 查看弹层（复用 viewer.* 文案）
     strings.set_viewer_edit(i18n.t("viewer.edit").into());
     strings.set_viewer_close(i18n.t("viewer.cancel").into());
-}
-
-// 托盘菜单文案（菜单在窗口之外，需要单独应用一次）。
-pub fn apply_tray(tray: &Tray, i18n: &I18n) {
-    tray.set_label_show(i18n.t("tray.show").into());
-    tray.set_label_quit(i18n.t("tray.quit").into());
 }

@@ -1,14 +1,14 @@
-// Mnemo（Slint 版）入口：窗口行为、系统托盘、数据层与业务回调的装配。
+// Mnemo（Slint 版）入口：窗口行为、数据层与业务回调的装配。
 // 分层：
 //   data.rs     —— SQLite 连接、查询缓存、CRUD 包装、列表模型刷新
-//   strings.rs  —— 把 i18n 文案写进 Slint 的 Strings / State / 托盘菜单
+//   strings.rs  —— 把 i18n 文案写进 Slint 的 Strings / State
 //   i18n.rs     —— 语言资源（locales/*.json，构建期嵌入二进制）
 //   settings.rs —— 语言选择持久化（与旧版 egui 共用 settings.json）
 //   paths.rs    —— 数据目录（com.longanl.mnemo）
 //   ui/*.slint  —— 视图与弹层；键盘捕获在 .slint（FocusScope + KeyBinding），Esc 在本文件（winit 钩子）
 
-// 双击 exe 时不弹控制台窗口（Windows 默认 console 子系统会新建 cmd 窗口，还会抢焦点触发"失焦隐藏"）。
-// 只对 release 生效：debug 仍保留控制台，便于查看 eprintln! 诊断（如托盘创建失败）。
+// 双击 exe 时不弹控制台窗口（Windows 默认 console 子系统会新建 cmd 窗口）。
+// 只对 release 生效：debug 仍保留控制台，便于查看 eprintln! 诊断。
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use std::cell::{Cell, RefCell};
@@ -36,45 +36,10 @@ const CODE_FONT_FAMILY: &str = "Menlo";
 #[cfg(all(unix, not(target_os = "macos")))]
 const CODE_FONT_FAMILY: &str = "Noto Sans Mono";
 
-/// 窗口交互的共享状态（只在 UI 线程访问，`Rc<Cell<..>>` 足够）。
-///
-/// 为什么需要它：Slint 的 `on_winit_window_event` 是**覆盖语义**
-/// （i-slint-backend-winit 内部执行 `window_event_filter.set(Some(..))`），
-/// 一个窗口只能注册一个钩子，因此"失焦隐藏"与"Esc 隐藏"必须写在同一个回调里。
-#[derive(Clone, Copy)]
-struct WindowFlags {
-    /// 托盘图标是否创建成功。为 false 时禁止隐藏窗口——没有托盘就没有唤回入口。
-    tray_ready: bool,
-    /// 最小化进行中：抑制"失去焦点自动隐藏"。
-    /// 最小化必然伴随 Focused(false)，不抑制的话"最小化到任务栏"会变成"隐藏到托盘"。
-    minimizing: bool,
-    /// 原生文件对话框（导入/导出）打开中：同样抑制失焦隐藏。
-    /// rfd 的对话框会让主窗口真失焦，不抑制的话窗口会藏到对话框背后。
-    dialog_open: bool,
-}
-
-impl WindowFlags {
-    fn new() -> Self {
-        Self {
-            tray_ready: true,
-            minimizing: false,
-            dialog_open: false,
-        }
-    }
-}
-
-// 原生文件对话框打开/关闭时切换抑制标志（见 WindowFlags::dialog_open）。
-fn set_dialog_open(flags: &Rc<Cell<WindowFlags>>, open: bool) {
-    let mut f = flags.get();
-    f.dialog_open = open;
-    flags.set(f);
-}
-
 /// 长生命周期的系统剪贴板。
 ///
-/// 为什么不是每次复制都 new：Linux（X11/Wayland）下剪贴板内容由最后写入的进程托管，
-/// 最后一个 `arboard::Clipboard` 实例 drop 后内容可能失效。把实例持有到进程结束，
-/// 三个平台的行为都稳定；Windows/macOS 上也不会因为实例复用过久而出问题。
+/// Linux（X11/Wayland）下剪贴板内容由最后写入的进程托管。复制成功后应用会退出，
+/// `arboard` 在 X11 上会尝试把内容移交给剪贴板管理器；复制失败重试时复用同一实例。
 struct ClipboardHandle(RefCell<Option<arboard::Clipboard>>);
 
 impl ClipboardHandle {
@@ -159,15 +124,13 @@ fn claim_single_instance(show_requested: Arc<AtomicBool>) -> bool {
 }
 
 fn main() -> Result<(), slint::PlatformError> {
-    // 失焦自动隐藏依赖 winit 的事件钩子，这里显式锁定 winit 后端。
+    // 显式锁定 winit 后端：Esc 与 Resized 需要 winit 事件钩子。
     slint::BackendSelector::new()
         .backend_name("winit".into())
         .select()?;
 
     // 与旧版（Tauri / egui）沿用同一应用标识，便于桌面环境归组。
     let _ = slint::set_xdg_app_id("com.longanl.mnemo");
-
-    let flags = Rc::new(Cell::new(WindowFlags::new()));
 
     // 单实例：抢到回环端口的是主实例；后来者请它唤回窗口后直接退出（端口被无关进程占用时放行）
     let show_requested = Arc::new(AtomicBool::new(false));
@@ -206,40 +169,24 @@ fn main() -> Result<(), slint::PlatformError> {
     // 数据层：打开 commands.db（含建表/迁移）并做首次查询，把真实数据绑定给 State.commands
     let app_data = data::AppData::open();
     data::refresh_list(&ui, &app_data, "");
-    // 剪贴板实例随进程存活，避免 Linux 下复制后立即 drop 导致粘贴内容丢失。
+    // 复制失败重试时复用同一剪贴板实例；复制成功退出时由 arboard 处理 X11 的移交。
     let clipboard = Rc::new(ClipboardHandle::new());
     install_data_bindings(&ui, &app_data);
-    install_business_callbacks(&ui, &app_data, &flags, &i18n, &toast_token, &clipboard);
-    install_io_callbacks(&ui, &app_data, &flags, &i18n, &toast_token);
+    install_business_callbacks(&ui, &app_data, &i18n, &toast_token, &clipboard);
+    install_io_callbacks(&ui, &app_data, &i18n, &toast_token);
 
-    install_window_controls(&ui, flags.clone());
-    install_window_event_hook(&ui, flags.clone(), last_normal_size.clone());
+    install_window_controls(&ui);
+    install_window_event_hook(&ui, last_normal_size.clone());
 
-    // 托盘必须早于窗口显示：无边框窗口一旦被隐藏，托盘是唯一的唤回入口。
-    let tray: Option<Rc<Tray>> = match Tray::new() {
-        Ok(tray) => {
-            install_tray(&tray, &ui, flags.clone());
-            Some(Rc::new(tray))
-        }
-        Err(err) => {
-            // 没有托盘 → 隐藏窗口后无法唤回。退化：禁用失焦隐藏，关闭/Esc 直接退出。
-            eprintln!("[mnemo] 托盘图标创建失败：{err}");
-            eprintln!("[mnemo] 退化策略：关闭按钮 / Esc 直接退出进程，失焦自动隐藏已禁用");
-            let mut f = flags.get();
-            f.tray_ready = false;
-            flags.set(f);
-            None
-        }
-    };
-    if let Some(tray) = &tray {
-        strings::apply_tray(tray, &i18n.borrow());
-    }
-    install_preference_callbacks(&ui, tray.clone(), i18n.clone());
+    install_preference_callbacks(&ui, i18n.clone());
+
+    // 关闭窗口 = 退出应用：系统关闭（Alt+F4 / 任务栏关闭）与自绘关闭按钮走同一条退出路径。
+    ui.window().on_close_requested(|| {
+        let _ = slint::quit_event_loop();
+        slint::CloseRequestResponse::KeepWindowShown
+    });
 
     ui.show()?;
-    if let Some(tray) = &tray {
-        tray.show()?;
-    }
 
     // 最大化在 show 之后再应用：窗口尚未创建时设置最大化在部分平台不生效
     if restore_maximized {
@@ -252,24 +199,20 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let flag = show_requested.clone();
         let ui_weak = ui.as_weak();
-        let flags_for_poll = flags.clone();
         poll_timer.start(
             slint::TimerMode::Repeated,
             std::time::Duration::from_millis(500),
             move || {
                 if flag.swap(false, Ordering::SeqCst) {
                     if let Some(ui) = ui_weak.upgrade() {
-                        show_window(&ui, &flags_for_poll);
+                        show_window(&ui);
                     }
                 }
             },
         );
     }
-    // 托盘不在窗口组件树里，作用域结束就会被销毁（图标随之消失），这里显式持有到事件循环结束。
-    let _keep_tray_alive = tray;
 
-    // 使用 run_event_loop_until_quit：窗口隐藏（失焦自动隐藏 / Esc / 关闭按钮）后事件循环仍需继续，
-    // 只有托盘菜单的 Quit（或"无托盘"退化路径）才退出。
+    // 关闭按钮 / 系统关闭 / 复制成功都会调用 quit_event_loop，事件循环结束后统一保存窗口尺寸。
     slint::run_event_loop_until_quit().expect("Slint event loop failed");
 
     // 退出前持久化窗口尺寸与最大化状态（下次启动恢复）
@@ -297,18 +240,16 @@ fn install_data_bindings(ui: &MainWindow, app_data: &Rc<data::AppData>) {
 
 // ---------- 导入 / 导出（原生文件对话框）----------
 // 说明：rfd 的对话框是阻塞式的（调用期间主线程进入对话框自己的消息循环），与旧版 egui 的做法一致。
-// 期间必须抑制"失焦自动隐藏"（set_dialog_open），否则窗口会被藏到对话框背后。
+// 现在窗口不再因失焦隐藏，因此不需要额外的抑制标志。
 fn install_io_callbacks(
     ui: &MainWindow,
     app_data: &Rc<data::AppData>,
-    flags: &Rc<Cell<WindowFlags>>,
     i18n: &Rc<RefCell<i18n::I18n>>,
     toast_token: &Rc<Cell<u32>>,
 ) {
     // 导出：库 → JSON → 保存对话框 → 写文件
     {
         let app_data = app_data.clone();
-        let flags = flags.clone();
         let i18n = i18n.clone();
         let token = toast_token.clone();
         let ui_weak = ui.as_weak();
@@ -326,12 +267,10 @@ fn install_io_callbacks(
             };
 
             let filter = i18n.borrow().t("io.exportFilter");
-            set_dialog_open(&flags, true);
             let path = rfd::FileDialog::new()
                 .set_file_name("mnemo-export.json")
                 .add_filter(filter, &["json"])
                 .save_file();
-            set_dialog_open(&flags, false);
 
             // 用户取消：直接返回（不弹 Toast 打扰）
             let Some(path) = path else { return };
@@ -352,7 +291,6 @@ fn install_io_callbacks(
     // 导入：打开对话框 → 读文件 → 写库 → 刷新列表 + 带条数的 Toast
     {
         let app_data = app_data.clone();
-        let flags = flags.clone();
         let i18n = i18n.clone();
         let token = toast_token.clone();
         let ui_weak = ui.as_weak();
@@ -360,11 +298,9 @@ fn install_io_callbacks(
             let Some(ui) = ui_weak.upgrade() else { return };
 
             let filter = i18n.borrow().t("io.importFilter");
-            set_dialog_open(&flags, true);
             let path = rfd::FileDialog::new()
                 .add_filter(filter, &["json"])
                 .pick_file();
-            set_dialog_open(&flags, false);
 
             let Some(path) = path else { return };
             let json = match std::fs::read_to_string(&path) {
@@ -413,15 +349,13 @@ fn install_io_callbacks(
 fn install_business_callbacks(
     ui: &MainWindow,
     app_data: &Rc<data::AppData>,
-    flags: &Rc<Cell<WindowFlags>>,
     i18n: &Rc<RefCell<i18n::I18n>>,
     toast_token: &Rc<Cell<u32>>,
     clipboard: &Rc<ClipboardHandle>,
 ) {
-    // 复制：写入剪贴板成功后隐藏窗口（无边框小工具"用完即走"的行为）
+    // 复制：写入剪贴板成功后退出应用（对应 README 的 "copy & close"）。
     {
         let app_data = app_data.clone();
-        let flags = flags.clone();
         let i18n = i18n.clone();
         let token = toast_token.clone();
         let clipboard = clipboard.clone();
@@ -431,14 +365,13 @@ fn install_business_callbacks(
             let Some(command) = app_data.find(id) else {
                 return;
             };
-            copy_command(&ui, &flags, &i18n, &token, &clipboard, &command);
+            copy_command(&ui, &i18n, &token, &clipboard, &command);
         });
     }
 
-    // Enter：Snippet 复制并关窗；Note 打开只读查看层（与 README 的产品语义一致）。
+    // Enter：Snippet 复制并退出；Note 打开只读查看层（与 README 的产品语义一致）。
     {
         let app_data = app_data.clone();
-        let flags = flags.clone();
         let i18n = i18n.clone();
         let token = toast_token.clone();
         let clipboard = clipboard.clone();
@@ -452,7 +385,7 @@ fn install_business_callbacks(
             if command.kind == KIND_NOTE {
                 open_viewer(&ui, &command);
             } else {
-                copy_command(&ui, &flags, &i18n, &token, &clipboard, &command);
+                copy_command(&ui, &i18n, &token, &clipboard, &command);
             }
         });
     }
@@ -630,17 +563,19 @@ fn install_business_callbacks(
     }
 }
 
-// 复制命令并隐藏窗口；剪贴板失败时只提示、不关窗。
+// 复制命令成功后退出应用；剪贴板失败时只提示、不关窗。
 fn copy_command(
     ui: &MainWindow,
-    flags: &Rc<Cell<WindowFlags>>,
     i18n: &Rc<RefCell<i18n::I18n>>,
     token: &Rc<Cell<u32>>,
     clipboard: &ClipboardHandle,
     command: &mnemo_core::models::Command,
 ) {
     match clipboard.set_text(&command.content) {
-        Ok(()) => hide_or_quit(ui, flags),
+        Ok(()) => {
+            // 关闭即退出：不再隐藏到托盘/后台。退出时 arboard 会在 X11 上尝试移交剪贴板内容。
+            let _ = slint::quit_event_loop();
+        }
         Err(err) => {
             eprintln!("[mnemo] 写入剪贴板失败：{err}");
             let message = i18n.borrow().t("toast.copyFailed");
@@ -649,8 +584,8 @@ fn copy_command(
     }
 }
 
-// 自定义顶栏的窗口控制：拖动 / 最小化 / 最大化还原 / 关闭（= 隐藏到托盘，不退出进程）。
-fn install_window_controls(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
+// 自定义顶栏的窗口控制：拖动 / 最小化 / 最大化还原 / 关闭（关闭 = 退出应用）。
+fn install_window_controls(ui: &MainWindow) {
     // 拖动：调用 winit 的系统级窗口拖动（Slint 的 WindowMoveArea 内部用的也是同一个 API）。
     // 拖动阈值判断在 TitleBar.slint 里完成，这里只在确实要开始拖动时才被调用。
     {
@@ -666,17 +601,11 @@ fn install_window_controls(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
         });
     }
 
-    // 最小化
+    // 最小化：只是收进任务栏，不再有"最小化变成隐藏到托盘"的特殊处理
     {
-        let flags = flags.clone();
         let ui_weak = ui.as_weak();
         ui.on_minimize_requested(move || {
             if let Some(ui) = ui_weak.upgrade() {
-                // 先置抑制标志再去最小化：最小化会触发 Focused(false)，
-                // 而 winit 事件是随后派发的，因此这里置位一定能被钩子看到。
-                let mut f = flags.get();
-                f.minimizing = true;
-                flags.set(f);
                 ui.window().set_minimized(true);
             }
         });
@@ -692,46 +621,29 @@ fn install_window_controls(ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
         });
     }
 
-    // 关闭：隐藏窗口，进程与托盘继续运行（退出走托盘菜单）
+    // 关闭：直接退出应用（与系统关闭走同一条 quit_event_loop 路径）
     {
-        let flags = flags.clone();
         let ui_weak = ui.as_weak();
-        ui.on_hide_requested(move || {
-            if let Some(ui) = ui_weak.upgrade() {
-                hide_or_quit(&ui, &flags);
+        ui.on_quit_requested(move || {
+            if ui_weak.upgrade().is_some() {
+                let _ = slint::quit_event_loop();
             }
         });
     }
 }
 
-// 唯一的 winit 窗口事件钩子（Slint 只允许注册一个，原因见 WindowFlags 注释）：
-// 1) 失去焦点自动隐藏（armed 标志确保窗口至少获得过一次焦点，避免启动瞬间误判）
-// 2) 最小化过程中抑制上述隐藏，否则"最小化到任务栏"会变成"隐藏到托盘"
-// 3) Esc：弹层（编辑器/确认框）打开时只关弹层，否则隐藏窗口。放在 Rust 侧拦截，
-//    与 .slint 里的 FocusScope（↑/↓/Enter/Ctrl+N/s）分工明确、互不重叠。
-fn install_window_event_hook(
-    ui: &MainWindow,
-    flags: Rc<Cell<WindowFlags>>,
-    last_normal_size: Rc<Cell<(u32, u32)>>,
-) {
-    let armed = Rc::new(Cell::new(false));
+// 唯一的 winit 窗口事件钩子（Slint 只允许注册一个）：
+// 1) Esc：弹层（查看/编辑/确认）打开时只关弹层；没有弹层时不做任何事。
+// 2) Resized：同步最大化状态，并记录非最大化尺寸供退出时持久化。
+fn install_window_event_hook(ui: &MainWindow, last_normal_size: Rc<Cell<(u32, u32)>>) {
     // 判断弹层是否需要优先处理需要读 State，因此钩子里也持有窗口弱引用
     let ui_weak = ui.as_weak();
     ui.window().on_winit_window_event(move |window, event| {
         match event {
-            winit::event::WindowEvent::Focused(true) => {
-                armed.set(true);
-                // 重新获得焦点（含从任务栏恢复）：结束"最小化抑制"
-                let mut f = flags.get();
-                f.minimizing = false;
-                flags.set(f);
-            }
-            winit::event::WindowEvent::Focused(false) => {
-                let f = flags.get();
-                // 两种抑制：最小化中（否则最小化会变成隐藏）、原生文件对话框打开中（rfd 会让窗口真失焦）
-                if armed.get() && f.tray_ready && !f.minimizing && !f.dialog_open {
-                    let _ = window.hide();
-                }
+            // 系统关闭（Alt+F4 / 任务栏）也必须是"关闭即退出"。
+            winit::event::WindowEvent::CloseRequested => {
+                let _ = slint::quit_event_loop();
+                return EventResult::PreventDefault;
             }
             winit::event::WindowEvent::Resized(_) => {
                 // 最大化 / 还原也可能由外部触发（Win+↑、任务栏菜单、系统快捷键……），
@@ -758,43 +670,20 @@ fn install_window_event_hook(
                         winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
                     );
                 if is_escape {
-                    // 弹层优先：编辑器 / 确认框打开时，Esc 只关弹层，不隐藏整个窗口
+                    // 弹层优先：只关当前弹层，不隐藏窗口。
                     let handled_by_overlay = ui_weak
                         .upgrade()
                         .map(|ui| close_top_overlay(&ui))
                         .unwrap_or(false);
-                    if !handled_by_overlay {
-                        // 无弹层：隐藏窗口，进程与托盘继续运行
-                        if flags.get().tray_ready {
-                            let _ = window.hide();
-                        } else {
-                            let _ = slint::quit_event_loop();
-                        }
+                    if handled_by_overlay {
+                        return EventResult::PreventDefault;
                     }
-                    // 已处理：不再传给 Slint
-                    return EventResult::PreventDefault;
+                    // 没有弹层：Esc 不再隐藏窗口，保持"打开就是打开"的语义。
                 }
             }
             _ => {}
         }
         EventResult::Propagate
-    });
-}
-
-// 托盘：菜单"显示主界面" → 唤回窗口；菜单"退出" → 结束事件循环。
-// 左键点击托盘图标同样会走到这里：tray.slint 里把内置的 SystemTrayIcon.clicked 转发给了
-// show-window（内置回调不会生成 Rust 访问器，所以转发必须在 .slint 侧做）。
-// SystemTrayIcon 只有在 icon 非空时才真正创建托盘图标；Windows 上左键走 clicked、右键弹菜单。
-fn install_tray(tray: &Tray, ui: &MainWindow, flags: Rc<Cell<WindowFlags>>) {
-    let ui_weak = ui.as_weak();
-    tray.on_show_window(move || {
-        if let Some(ui) = ui_weak.upgrade() {
-            show_window(&ui, &flags);
-        }
-    });
-
-    tray.on_quit(|| {
-        let _ = slint::quit_event_loop();
     });
 }
 
@@ -880,7 +769,7 @@ fn close_top_overlay(ui: &MainWindow) -> bool {
 
 // 底部 Toast：显示 1.5s 后自动关闭（时长与旧版 egui 一致）。
 // token 处理连续提示：旧定时器发现 token 已变就什么都不做，不会把新提示提前关掉。
-// 注意：成功后不弹"已复制"——窗口会立即隐藏，弹了也看不见；失败才需要提示。
+// 注意：成功后不弹"已复制"——复制成功会立即退出应用，弹了也看不见；失败才需要提示。
 fn show_toast(ui: &MainWindow, text: &str, token: &Rc<Cell<u32>>) {
     let state = ui.global::<State>();
     state.set_toast_text(SharedString::from(text));
@@ -900,11 +789,7 @@ fn show_toast(ui: &MainWindow, text: &str, token: &Rc<Cell<u32>>) {
 }
 
 // 主题与语言：都是"点击即切换"，切换后持久化到 settings.json（字段与旧版 egui 共用）。
-fn install_preference_callbacks(
-    ui: &MainWindow,
-    tray: Option<Rc<Tray>>,
-    i18n: Rc<RefCell<i18n::I18n>>,
-) {
+fn install_preference_callbacks(ui: &MainWindow, i18n: Rc<RefCell<i18n::I18n>>) {
     // 主题：只切换 Theme 全局的 is-dark。界面所有颜色都是它的条件绑定，
     // Slint 的绑定系统会自动重算并重绘，不需要逐控件通知。
     {
@@ -919,8 +804,7 @@ fn install_preference_callbacks(
         });
     }
 
-    // 语言：中英互换 → 重写界面与托盘文案 → 持久化。
-    // 语言按钮与托盘菜单文案要立刻跟着变，所以托盘也要重新应用一次。
+    // 语言：中英互换 → 重写界面文案 → 持久化。
     {
         let ui_weak = ui.as_weak();
         ui.on_lang_clicked(move || {
@@ -930,9 +814,6 @@ fn install_preference_callbacks(
                 let i18n = i18n.borrow();
                 if let Some(ui) = ui_weak.upgrade() {
                     strings::apply(&ui, &i18n);
-                }
-                if let Some(tray) = &tray {
-                    strings::apply_tray(tray, &i18n);
                 }
             }
             settings::save_lang(next);
@@ -958,25 +839,11 @@ fn trimmed_opt(value: &str) -> Option<String> {
     }
 }
 
-// 唤回窗口：从"隐藏"与"最小化"两种状态都能正确恢复。
-fn show_window(ui: &MainWindow, flags: &Rc<Cell<WindowFlags>>) {
-    // 清掉"最小化抑制"，避免恢复之后失焦自动隐藏被永久禁用
-    let mut f = flags.get();
-    f.minimizing = false;
-    flags.set(f);
-
+// 唤回窗口：单实例第二次启动时把已有窗口从最小化状态恢复并置前。
+fn show_window(ui: &MainWindow) {
     if ui.window().is_minimized() {
         // 必须先取消最小化，否则 show() 之后窗口仍停留在任务栏最小化状态
         ui.window().set_minimized(false);
     }
     let _ = ui.show();
-}
-
-// 隐藏窗口；若托盘不可用（隐藏后无法唤回）则退化为退出进程。
-fn hide_or_quit(ui: &MainWindow, flags: &Rc<Cell<WindowFlags>>) {
-    if flags.get().tray_ready {
-        let _ = ui.hide();
-    } else {
-        let _ = slint::quit_event_loop();
-    }
 }
