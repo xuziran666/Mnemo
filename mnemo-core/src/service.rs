@@ -52,7 +52,8 @@ pub fn list(conn: &Connection, query: Option<&str>) -> Result<Vec<Command>, Stri
             let rows = stmt
                 .query_map([&like], row_to_command)
                 .map_err(|e| e.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?
         }
         _ => {
             let mut stmt = conn
@@ -65,7 +66,8 @@ pub fn list(conn: &Connection, query: Option<&str>) -> Result<Vec<Command>, Stri
             let rows = stmt
                 .query_map([], row_to_command)
                 .map_err(|e| e.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?
         }
     };
 
@@ -245,8 +247,11 @@ mod tests {
     #[test]
     fn create_returns_inserted_row_and_list_sees_it() {
         let conn = memory_db();
-        let created =
-            create(&conn, new_command("推分支", "git push origin HEAD", KIND_SNIPPET)).unwrap();
+        let created = create(
+            &conn,
+            new_command("推分支", "git push origin HEAD", KIND_SNIPPET),
+        )
+        .unwrap();
 
         assert!(created.id > 0);
         assert_eq!(created.kind, KIND_SNIPPET);
@@ -266,7 +271,9 @@ mod tests {
             KIND_SNIPPET
         );
         assert_eq!(
-            create(&conn, new_command("t2", "c2", KIND_NOTE)).unwrap().kind,
+            create(&conn, new_command("t2", "c2", KIND_NOTE))
+                .unwrap()
+                .kind,
             KIND_NOTE
         );
 
@@ -316,7 +323,11 @@ mod tests {
         with_note.note = Some("生产环境用".to_string());
         with_note.tags = Some("k8s,ops".to_string());
         create(&conn, with_note).unwrap();
-        create(&conn, new_command("回滚", "kubectl rollout undo", KIND_SNIPPET)).unwrap();
+        create(
+            &conn,
+            new_command("回滚", "kubectl rollout undo", KIND_SNIPPET),
+        )
+        .unwrap();
 
         assert_eq!(list(&conn, None).unwrap().len(), 2);
         // 空白关键词等价于不过滤

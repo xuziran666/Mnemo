@@ -36,9 +36,7 @@ fn column_names(conn: &Connection) -> Result<Vec<String>, rusqlite::Error> {
 fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     let names = column_names(conn)?;
     if !names.iter().any(|name| name == "kind") {
-        conn.execute_batch(
-            "ALTER TABLE commands ADD COLUMN kind INTEGER NOT NULL DEFAULT 1;",
-        )?;
+        conn.execute_batch("ALTER TABLE commands ADD COLUMN kind INTEGER NOT NULL DEFAULT 1;")?;
     }
     let has_content = names.iter().any(|name| name == "content");
     let has_command = names.iter().any(|name| name == "command");
@@ -46,7 +44,9 @@ fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         if has_command {
             conn.execute_batch("ALTER TABLE commands RENAME COLUMN command TO content;")?;
         } else {
-            conn.execute_batch("ALTER TABLE commands ADD COLUMN content TEXT NOT NULL DEFAULT '';")?;
+            conn.execute_batch(
+                "ALTER TABLE commands ADD COLUMN content TEXT NOT NULL DEFAULT '';",
+            )?;
         }
     }
     Ok(())

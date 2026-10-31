@@ -16,7 +16,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use mnemo_core::models::{NewCommand, KIND_SNIPPET};
+use mnemo_core::models::{NewCommand, KIND_NOTE, KIND_SNIPPET};
 use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
 use slint::{ComponentHandle, SharedString};
 
@@ -68,6 +68,31 @@ fn set_dialog_open(flags: &Rc<Cell<WindowFlags>>, open: bool) {
     let mut f = flags.get();
     f.dialog_open = open;
     flags.set(f);
+}
+
+/// 长生命周期的系统剪贴板。
+///
+/// 为什么不是每次复制都 new：Linux（X11/Wayland）下剪贴板内容由最后写入的进程托管，
+/// 最后一个 `arboard::Clipboard` 实例 drop 后内容可能失效。把实例持有到进程结束，
+/// 三个平台的行为都稳定；Windows/macOS 上也不会因为实例复用过久而出问题。
+struct ClipboardHandle(RefCell<Option<arboard::Clipboard>>);
+
+impl ClipboardHandle {
+    fn new() -> Self {
+        Self(RefCell::new(None))
+    }
+
+    fn set_text(&self, text: &str) -> Result<(), String> {
+        let mut slot = self.0.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(arboard::Clipboard::new().map_err(|err| err.to_string())?);
+        }
+
+        slot.as_mut()
+            .ok_or_else(|| "clipboard not initialized".to_string())?
+            .set_text(text)
+            .map_err(|err| err.to_string())
+    }
 }
 
 // ---------- 窗口尺寸持久化 ----------
@@ -123,9 +148,7 @@ fn claim_single_instance(show_requested: Arc<AtomicBool>) -> bool {
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let mut line = String::new();
-            if BufReader::new(&stream).read_line(&mut line).is_ok()
-                && line.trim() == SHOW_REQUEST
-            {
+            if BufReader::new(&stream).read_line(&mut line).is_ok() && line.trim() == SHOW_REQUEST {
                 show_requested.store(true, Ordering::SeqCst);
                 let mut stream = stream;
                 let _ = stream.write_all(format!("{SHOW_ACK}\n").as_bytes());
@@ -183,8 +206,10 @@ fn main() -> Result<(), slint::PlatformError> {
     // 数据层：打开 commands.db（含建表/迁移）并做首次查询，把真实数据绑定给 State.commands
     let app_data = data::AppData::open();
     data::refresh_list(&ui, &app_data, "");
+    // 剪贴板实例随进程存活，避免 Linux 下复制后立即 drop 导致粘贴内容丢失。
+    let clipboard = Rc::new(ClipboardHandle::new());
     install_data_bindings(&ui, &app_data);
-    install_business_callbacks(&ui, &app_data, &flags, &i18n, &toast_token);
+    install_business_callbacks(&ui, &app_data, &flags, &i18n, &toast_token, &clipboard);
     install_io_callbacks(&ui, &app_data, &flags, &i18n, &toast_token);
 
     install_window_controls(&ui, flags.clone());
@@ -363,7 +388,10 @@ fn install_io_callbacks(
                         if result.skipped > 0 {
                             i18n.t_args(
                                 "toast.importSkipped",
-                                &[("imported", imported.as_str()), ("skipped", skipped.as_str())],
+                                &[
+                                    ("imported", imported.as_str()),
+                                    ("skipped", skipped.as_str()),
+                                ],
                             )
                         } else {
                             i18n.t_args("toast.imported", &[("count", imported.as_str())])
@@ -388,6 +416,7 @@ fn install_business_callbacks(
     flags: &Rc<Cell<WindowFlags>>,
     i18n: &Rc<RefCell<i18n::I18n>>,
     toast_token: &Rc<Cell<u32>>,
+    clipboard: &Rc<ClipboardHandle>,
 ) {
     // 复制：写入剪贴板成功后隐藏窗口（无边框小工具"用完即走"的行为）
     {
@@ -395,22 +424,35 @@ fn install_business_callbacks(
         let flags = flags.clone();
         let i18n = i18n.clone();
         let token = toast_token.clone();
+        let clipboard = clipboard.clone();
         let ui_weak = ui.as_weak();
         ui.on_copy_requested(move |id| {
             let Some(ui) = ui_weak.upgrade() else { return };
-            let Some(command) = app_data.find(id) else { return };
-            // 每次复制都新建 Clipboard 实例：短生命周期在 Windows 上更稳妥（写入后由系统接管数据）。
-            // 失败不能只打日志，必须给用户 Toast 反馈。
-            let copied = arboard::Clipboard::new()
-                .and_then(|mut clipboard| clipboard.set_text(command.content))
-                .map_err(|err| err.to_string());
-            match copied {
-                Ok(()) => hide_or_quit(&ui, &flags),
-                Err(err) => {
-                    eprintln!("[mnemo] 写入剪贴板失败：{err}");
-                    let message = i18n.borrow().t("toast.copyFailed");
-                    show_toast(&ui, &message, &token);
-                }
+            let Some(command) = app_data.find(id) else {
+                return;
+            };
+            copy_command(&ui, &flags, &i18n, &token, &clipboard, &command);
+        });
+    }
+
+    // Enter：Snippet 复制并关窗；Note 打开只读查看层（与 README 的产品语义一致）。
+    {
+        let app_data = app_data.clone();
+        let flags = flags.clone();
+        let i18n = i18n.clone();
+        let token = toast_token.clone();
+        let clipboard = clipboard.clone();
+        let ui_weak = ui.as_weak();
+        ui.on_activate_requested(move |id| {
+            let Some(ui) = ui_weak.upgrade() else { return };
+            let Some(command) = app_data.find(id) else {
+                return;
+            };
+
+            if command.kind == KIND_NOTE {
+                open_viewer(&ui, &command);
+            } else {
+                copy_command(&ui, &flags, &i18n, &token, &clipboard, &command);
             }
         });
     }
@@ -463,6 +505,9 @@ fn install_business_callbacks(
                 state.set_viewing_open(false);
                 if let Some(command) = app_data.find(id) {
                     open_editor(&ui, Some(&command));
+                } else {
+                    // 条目刚好被删除/过滤：查看层已关闭，焦点要回到列表，避免快捷键失效。
+                    ui.invoke_focus_list();
                 }
             }
         });
@@ -487,7 +532,9 @@ fn install_business_callbacks(
         let ui_weak = ui.as_weak();
         ui.on_delete_requested(move |id| {
             let Some(ui) = ui_weak.upgrade() else { return };
-            let Some(command) = app_data.find(id) else { return };
+            let Some(command) = app_data.find(id) else {
+                return;
+            };
             let message = i18n
                 .borrow()
                 .t_args("confirm.delete", &[("title", command.title.as_str())]);
@@ -509,6 +556,8 @@ fn install_business_callbacks(
             let state = ui.global::<State>();
             let id = state.get_confirm_id();
             state.set_confirm_open(false);
+            // 确认框有自己的 FocusScope；关闭后把焦点还给列表，否则键盘快捷键会失效。
+            ui.invoke_focus_list();
 
             match app_data.delete(id as i64) {
                 Ok(()) => {
@@ -566,6 +615,8 @@ fn install_business_callbacks(
                         state.set_selected_id(command.id as i32);
                     }
                     state.set_editor_open(false);
+                    // 编辑器销毁后 focus item 不存在了，必须显式把焦点还给列表。
+                    ui.invoke_focus_list();
                     let message = i18n.borrow().t("toast.saved");
                     show_toast(&ui, &message, &token);
                 }
@@ -576,6 +627,25 @@ fn install_business_callbacks(
                 }
             }
         });
+    }
+}
+
+// 复制命令并隐藏窗口；剪贴板失败时只提示、不关窗。
+fn copy_command(
+    ui: &MainWindow,
+    flags: &Rc<Cell<WindowFlags>>,
+    i18n: &Rc<RefCell<i18n::I18n>>,
+    token: &Rc<Cell<u32>>,
+    clipboard: &ClipboardHandle,
+    command: &mnemo_core::models::Command,
+) {
+    match clipboard.set_text(&command.content) {
+        Ok(()) => hide_or_quit(ui, flags),
+        Err(err) => {
+            eprintln!("[mnemo] 写入剪贴板失败：{err}");
+            let message = i18n.borrow().t("toast.copyFailed");
+            show_toast(ui, &message, token);
+        }
     }
 }
 
@@ -647,68 +717,68 @@ fn install_window_event_hook(
     let armed = Rc::new(Cell::new(false));
     // 判断弹层是否需要优先处理需要读 State，因此钩子里也持有窗口弱引用
     let ui_weak = ui.as_weak();
-    ui.window()
-        .on_winit_window_event(move |window, event| {
-            match event {
-                winit::event::WindowEvent::Focused(true) => {
-                    armed.set(true);
-                    // 重新获得焦点（含从任务栏恢复）：结束"最小化抑制"
-                    let mut f = flags.get();
-                    f.minimizing = false;
-                    flags.set(f);
-                }
-                winit::event::WindowEvent::Focused(false) => {
-                    let f = flags.get();
-                    // 两种抑制：最小化中（否则最小化会变成隐藏）、原生文件对话框打开中（rfd 会让窗口真失焦）
-                    if armed.get() && f.tray_ready && !f.minimizing && !f.dialog_open {
-                        let _ = window.hide();
-                    }
-                }
-                winit::event::WindowEvent::Resized(_) => {
-                    // 最大化 / 还原也可能由外部触发（Win+↑、任务栏菜单、系统快捷键……），
-                    // 这里把真实状态同步给 State，保证顶栏"最大化/还原"图标始终正确。
-                    let maximized = window.is_maximized();
-                    if !maximized {
-                        // 记录"非最大化"尺寸：退出时用它持久化（最大化状态下 size() 是最大化尺寸）
-                        let size = window.size();
-                        last_normal_size.set((size.width, size.height));
-                    }
-                    if let Some(ui) = ui_weak.upgrade() {
-                        let state = ui.global::<State>();
-                        if state.get_maximized() != maximized {
-                            state.set_maximized(maximized);
-                        }
-                    }
-                }
-                winit::event::WindowEvent::KeyboardInput { event: key_event, .. } => {
-                    let is_escape =
-                        matches!(key_event.state, winit::event::ElementState::Pressed)
-                            && matches!(
-                                &key_event.logical_key,
-                                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
-                            );
-                    if is_escape {
-                        // 弹层优先：编辑器 / 确认框打开时，Esc 只关弹层，不隐藏整个窗口
-                        let handled_by_overlay = ui_weak
-                            .upgrade()
-                            .map(|ui| close_top_overlay(&ui))
-                            .unwrap_or(false);
-                        if !handled_by_overlay {
-                            // 无弹层：隐藏窗口，进程与托盘继续运行
-                            if flags.get().tray_ready {
-                                let _ = window.hide();
-                            } else {
-                                let _ = slint::quit_event_loop();
-                            }
-                        }
-                        // 已处理：不再传给 Slint
-                        return EventResult::PreventDefault;
-                    }
-                }
-                _ => {}
+    ui.window().on_winit_window_event(move |window, event| {
+        match event {
+            winit::event::WindowEvent::Focused(true) => {
+                armed.set(true);
+                // 重新获得焦点（含从任务栏恢复）：结束"最小化抑制"
+                let mut f = flags.get();
+                f.minimizing = false;
+                flags.set(f);
             }
-            EventResult::Propagate
-        });
+            winit::event::WindowEvent::Focused(false) => {
+                let f = flags.get();
+                // 两种抑制：最小化中（否则最小化会变成隐藏）、原生文件对话框打开中（rfd 会让窗口真失焦）
+                if armed.get() && f.tray_ready && !f.minimizing && !f.dialog_open {
+                    let _ = window.hide();
+                }
+            }
+            winit::event::WindowEvent::Resized(_) => {
+                // 最大化 / 还原也可能由外部触发（Win+↑、任务栏菜单、系统快捷键……），
+                // 这里把真实状态同步给 State，保证顶栏"最大化/还原"图标始终正确。
+                let maximized = window.is_maximized();
+                if !maximized {
+                    // 记录"非最大化"尺寸：退出时用它持久化（最大化状态下 size() 是最大化尺寸）
+                    let size = window.size();
+                    last_normal_size.set((size.width, size.height));
+                }
+                if let Some(ui) = ui_weak.upgrade() {
+                    let state = ui.global::<State>();
+                    if state.get_maximized() != maximized {
+                        state.set_maximized(maximized);
+                    }
+                }
+            }
+            winit::event::WindowEvent::KeyboardInput {
+                event: key_event, ..
+            } => {
+                let is_escape = matches!(key_event.state, winit::event::ElementState::Pressed)
+                    && matches!(
+                        &key_event.logical_key,
+                        winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
+                    );
+                if is_escape {
+                    // 弹层优先：编辑器 / 确认框打开时，Esc 只关弹层，不隐藏整个窗口
+                    let handled_by_overlay = ui_weak
+                        .upgrade()
+                        .map(|ui| close_top_overlay(&ui))
+                        .unwrap_or(false);
+                    if !handled_by_overlay {
+                        // 无弹层：隐藏窗口，进程与托盘继续运行
+                        if flags.get().tray_ready {
+                            let _ = window.hide();
+                        } else {
+                            let _ = slint::quit_event_loop();
+                        }
+                    }
+                    // 已处理：不再传给 Slint
+                    return EventResult::PreventDefault;
+                }
+            }
+            _ => {}
+        }
+        EventResult::Propagate
+    });
 }
 
 // 托盘：菜单"显示主界面" → 唤回窗口；菜单"退出" → 结束事件循环。
@@ -788,7 +858,7 @@ fn open_viewer(ui: &MainWindow, command: &mnemo_core::models::Command) {
 // 弹层状态都在 State 全局里，Rust 侧能直接判定，因此 Esc 仍然只需要一个入口。
 fn close_top_overlay(ui: &MainWindow) -> bool {
     let state = ui.global::<State>();
-    if state.get_editor_open() {
+    let closed = if state.get_editor_open() {
         state.set_editor_open(false);
         true
     } else if state.get_confirm_open() {
@@ -799,7 +869,13 @@ fn close_top_overlay(ui: &MainWindow) -> bool {
         true
     } else {
         false
+    };
+
+    if closed {
+        // Esc 关闭弹层后同样要把焦点还给列表；否则下一次按键没有 focus item 可投递。
+        ui.invoke_focus_list();
     }
+    closed
 }
 
 // 底部 Toast：显示 1.5s 后自动关闭（时长与旧版 egui 一致）。

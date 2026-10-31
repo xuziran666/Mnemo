@@ -97,4 +97,8 @@ export global State {
     // 显示/隐藏由 Rust 侧控制（1.5s 后自动置 false），文案来自 i18n。
     in-out property <bool> toast-visible: false;
     in-out property <string> toast-text: "";
+
+    // 任一弹层打开时，列表快捷键必须让位。
+    // 查看层/确认框没有包裹在 content-scope 里，若不加这个守卫，按 Enter 会触发列表的复制并关窗。
+    out property <bool> modal-open: editor-open || viewing-open || confirm-open;
 }

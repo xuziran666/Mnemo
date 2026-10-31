@@ -28,6 +28,8 @@ export component MainWindow inherits Window {
     // 刻意不沿用旧版"点正文即复制/查看"的行为，避免误关窗。
     callback card-activated(int);
     callback copy-requested(int);
+    // Enter：Snippet 复制并隐藏窗口；Note 打开只读查看层（语义与 README 一致）
+    callback activate-requested(int);
     callback edit-requested(int);
     callback delete-requested(int);
     callback import-clicked();
@@ -87,33 +89,36 @@ export component MainWindow inherits Window {
         // 选中态只能用 id 表示，再由持有列表缓存的一侧换算下标（见 main.rs 的 move_selection）。
         KeyBinding {
             keys: @keys(DownArrow);
-            enabled: !toolbar.search-focused;
+            enabled: !toolbar.search-focused && !State.modal-open;
             activated => { root.select-move(1); }
         }
         KeyBinding {
             keys: @keys(UpArrow);
-            enabled: !toolbar.search-focused;
+            enabled: !toolbar.search-focused && !State.modal-open;
             activated => { root.select-move(-1); }
         }
-        // Enter：复制选中项并关窗（与卡片上的 Copy 按钮走同一条路径）
+        // Enter：交给 Rust 按 kind 分流（Snippet 复制关窗 / Note 打开查看层），
+        // 不直接在 .slint 里判断类型，避免与列表缓存保持两套数据。
         KeyBinding {
             keys: @keys(Return);
-            enabled: !toolbar.search-focused && (State.selected-id != 0);
-            activated => { root.copy-requested(State.selected-id); }
+            enabled: !toolbar.search-focused && !State.modal-open && (State.selected-id != 0);
+            activated => { root.activate-requested(State.selected-id); }
         }
         // Ctrl+N：新建（Windows/Linux 用 Control；macOS 的 Command 对应 Meta，两条都绑上）
         KeyBinding {
             keys: @keys(Control + N);
+            enabled: !State.modal-open;
             activated => { root.new-clicked(); }
         }
         KeyBinding {
             keys: @keys(Meta + N);
+            enabled: !State.modal-open;
             activated => { root.new-clicked(); }
         }
         // s：聚焦搜索框。搜索框已聚焦时字母键会被 TextInput 消费，这里再加 enabled 双保险。
         KeyBinding {
             keys: @keys(S);
-            enabled: !toolbar.search-focused;
+            enabled: !toolbar.search-focused && !State.modal-open;
             activated => { toolbar.focus-search(); }
         }
 
@@ -121,22 +126,22 @@ export component MainWindow inherits Window {
         // 与 Enter 同一套守卫：搜索框聚焦时让位给输入，无选中时不触发。
         KeyBinding {
             keys: @keys(R);
-            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            enabled: !toolbar.search-focused && !State.modal-open && (State.selected-id != 0);
             activated => { root.edit-requested(State.selected-id); }
         }
         KeyBinding {
             keys: @keys(C);
-            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            enabled: !toolbar.search-focused && !State.modal-open && (State.selected-id != 0);
             activated => { root.copy-requested(State.selected-id); }
         }
         KeyBinding {
             keys: @keys(V);
-            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            enabled: !toolbar.search-focused && !State.modal-open && (State.selected-id != 0);
             activated => { root.view-requested(State.selected-id); }
         }
         KeyBinding {
             keys: @keys(D);
-            enabled: !toolbar.search-focused && (State.selected-id != 0);
+            enabled: !toolbar.search-focused && !State.modal-open && (State.selected-id != 0);
             activated => { root.delete-requested(State.selected-id); }
         }
 
@@ -266,11 +271,38 @@ export component MainWindow inherits Window {
             height: 100%;
         }
 
-        ViewerPanel {
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            edit-requested => { root.viewer-edit(); }
-            cancel => { State.viewing-open = false; }
+        // 查看层自己持有焦点，否则焦点仍留在 content-scope：
+        // 按 Enter 会触发列表的复制并关窗，按 r/d 会在查看层上再叠一层弹层。
+        viewer-scope := FocusScope {
+            x: 0;
+            y: 0;
+            width: 100%;
+            height: 100%;
+
+            init => { viewer-scope.focus(); }
+
+            // 与 README 一致：查看层内 Enter 原位进入编辑。
+            KeyBinding {
+                keys: @keys(Return);
+                activated => { root.viewer-edit(); }
+            }
+            // 保留列表里的 c / r 语义（c 复制并关窗，r 编辑）。
+            KeyBinding {
+                keys: @keys(C);
+                activated => { root.copy-requested(State.viewing.id); }
+            }
+            KeyBinding {
+                keys: @keys(R);
+                activated => { root.viewer-edit(); }
+            }
+
+            ViewerPanel {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                edit-requested => { root.viewer-edit(); }
+                // 关闭弹层后把焦点还给列表。
+                cancel => { State.viewing-open = false; root.focus-list(); }
+            }
         }
     }
 
@@ -305,12 +337,18 @@ export component MainWindow inherits Window {
                 keys: @keys(Control + S);
                 activated => { root.editor-save(); }
             }
+            // macOS 的 Command 对应 Meta；README 同时承诺了 Cmd+S。
+            KeyBinding {
+                keys: @keys(Meta + S);
+                activated => { root.editor-save(); }
+            }
 
             EditorPanel {
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
                 save => { root.editor-save(); }
-                cancel => { State.editor-open = false; }
+                // 关闭编辑层后把焦点还给列表：editor-scope 销毁后焦点不会自动回到 content-scope。
+                cancel => { State.editor-open = false; root.focus-list(); }
             }
         }
     }
@@ -329,11 +367,26 @@ export component MainWindow inherits Window {
             height: 100%;
         }
 
-        ConfirmDialog {
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            confirmed => { root.confirm-ok(); }
-            cancelled => { State.confirm-open = false; }
+        // 确认框也自己持有焦点：Enter = 确认删除，避免落到列表的 Enter 上复制关窗。
+        confirm-scope := FocusScope {
+            x: 0;
+            y: 0;
+            width: 100%;
+            height: 100%;
+
+            init => { confirm-scope.focus(); }
+
+            KeyBinding {
+                keys: @keys(Return);
+                activated => { root.confirm-ok(); }
+            }
+
+            ConfirmDialog {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                confirmed => { root.confirm-ok(); }
+                cancelled => { State.confirm-open = false; root.focus-list(); }
+            }
         }
     }
 
@@ -344,5 +397,11 @@ export component MainWindow inherits Window {
         width: 100%;
         height: 100%;
         text: State.toast-text;
+    }
+
+    // 供 Rust 在保存/关闭弹层后把焦点还给列表。
+    // 弹层销毁时 Slint 不会自动把焦点交还给 content-scope（forward-focus 只在初始化时执行一次）。
+    public function focus-list() {
+        content-scope.focus();
     }
 }

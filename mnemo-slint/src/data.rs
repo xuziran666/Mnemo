@@ -56,7 +56,11 @@ impl AppData {
     fn reload(&self, query: &str) {
         if let Some(conn) = self.conn.as_ref() {
             let trimmed = query.trim();
-            let filter = if trimmed.is_empty() { None } else { Some(trimmed) };
+            let filter = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            };
             match mnemo_core::list(conn, filter) {
                 Ok(rows) => *self.commands.borrow_mut() = rows,
                 Err(err) => eprintln!("[mnemo] 查询失败：{err}"),

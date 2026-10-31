@@ -16,7 +16,7 @@
 - **Copy & close** — Copying a command puts it on your clipboard and closes the window instantly, so your terminal workflow is never interrupted.
 - **Organized** — Each command can carry a title, note, and tags for easy management.
 - **Light & dark theme** — Toggle between light and dark mode; your choice is remembered.
-- **Viewer mode** — Press `Enter` to view a note as plain text (read-only); press `Enter` in the viewer to switch to editing in place, `Ctrl+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed).
+- **Viewer mode** — Press `v` (or the **View** button) to read an entry as plain text (read-only); press `Enter` in the viewer to switch to editing in place, `Ctrl+S`/`Cmd+S` to save, `Esc` to go back. Each entry is typed as **Snippet** (code, copied) or **Note** (knowledge, viewed).
 - **Pure Rust** — Native desktop UI built with [Slint](https://slint.dev); no web runtime, no Node.js. All persistence and business logic live in a framework-agnostic `mnemo-core`.
 
 ## Screenshot
@@ -40,7 +40,7 @@
   maximize/restore, and use the buttons on its right edge for minimize / maximize / close.
 - Closing or losing focus **hides** the window (the process keeps running); bring it back from the tray
   (left-click the icon, or the tray menu).
-- `Enter` copies the selected command; use `v` (or the **View** button) to read a note without copying.
+- `Enter` copies the selected snippet or opens the selected note in the viewer; use `v` (or the **View** button) to read any entry without copying.
 - The theme is dark by default, toggled in the toolbar and remembered. Preferences live in
   `settings.json` next to the database.
 
@@ -70,14 +70,13 @@ The binary is produced at `target/release/mnemo` (`mnemo.exe` on Windows).
 |---|---|
 | `s` | Focus the search box |
 | `↑` / `↓` | Move the selection (the list scrolls to follow) |
-| `Enter` | Copy the selected command & hide the window |
-| `c` | Same as `Enter` |
+| `Enter` | Copy the selected snippet & hide the window, or open a selected note in the viewer |
+| `c` | Copy the selected command (notes included) & hide the window |
 | `v` | Open the read-only viewer for the selected command |
 | `r` | Edit the selected command |
 | `d` | Delete the selected command (confirmation required) |
 | `Ctrl+N` / `Cmd+N` | Add a new command |
 | `Esc` | Close the open viewer/dialog, otherwise hide the window |
-| `+` | Add a new command (mouse) |
 
 ### In a dialog
 

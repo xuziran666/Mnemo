@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # 仓库默认分支是 slint；main 保留给未来的重命名/镜像分支。
+    branches: [main, slint]
   pull_request:
 
 concurrency:
