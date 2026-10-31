@@ -7,6 +7,10 @@
 //   paths.rs    —— 数据目录（com.longanl.mnemo）
 //   ui/*.slint  —— 视图与弹层；键盘捕获在 .slint（FocusScope + KeyBinding），Esc 在本文件（winit 钩子）
 
+// 双击 exe 时不弹控制台窗口（Windows 默认 console 子系统会新建 cmd 窗口，还会抢焦点触发"失焦隐藏"）。
+// 只对 release 生效：debug 仍保留控制台，便于查看 eprintln! 诊断（如托盘创建失败）。
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
