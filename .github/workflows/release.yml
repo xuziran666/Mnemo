@@ -1,3 +1,4 @@
+
 name: Release
 
 on:
@@ -10,6 +11,8 @@ permissions:
 
 jobs:
   build:
+    name: Build ${{ matrix.asset }}
+
     strategy:
       fail-fast: false
       matrix:
@@ -17,23 +20,33 @@ jobs:
           - platform: ubuntu-22.04
             asset: mnemo-linux-x86_64.AppImage
             packager_format: appimage
+            artifact_pattern: '*.AppImage'
+
           - platform: ubuntu-22.04-arm
             asset: mnemo-linux-aarch64.AppImage
             packager_format: appimage
+            artifact_pattern: '*.AppImage'
+
           - platform: windows-2022
             asset: mnemo-windows-x86_64-setup.exe
             packager_format: nsis
+            artifact_pattern: '*-setup.exe'
+
           - platform: windows-11-arm
             asset: mnemo-windows-aarch64-setup.exe
             packager_format: nsis
+            artifact_pattern: '*-setup.exe'
+
           - platform: macos-14
             asset: mnemo-macos-aarch64.dmg
             packager_format: dmg
+            artifact_pattern: '*.dmg'
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -43,24 +56,87 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libxkbcommon-dev libwayland-dev libx11-dev \
-            libxcursor-dev libxrandr-dev libxi-dev \
-            libgl1-mesa-dev libegl1-mesa-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxrandr-dev \
+            libxi-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
             libfontconfig1-dev \
-            libfuse2 file rpm
+            libfuse2 \
+            file \
+            rpm
 
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
 
-      # 关键：切换到 mnemo-slint 目录执行打包，
-      # packager 会自动 build，并输出到 workspace 根目录的 target/release/bundle/<format>/
+      # 在 mnemo-slint 目录执行打包
+      # Cargo 自动使用 workspace 根目录的 target
       - name: Package Application
         working-directory: ./mnemo-slint
         run: cargo packager --release --format ${{ matrix.packager_format }}
 
-      - name: Upload release asset
+      # 从 target/release 中查找真实产物，并统一重命名
+      - name: Rename package artifact
+        shell: bash
+        env:
+          ARTIFACT_PATTERN: ${{ matrix.artifact_pattern }}
+          ASSET_NAME: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-assets
+
+          mapfile -d '' artifacts < <(
+            find target/release \
+              -type f \
+              -iname "$ARTIFACT_PATTERN" \
+              -print0
+          )
+
+          if [ "${#artifacts[@]}" -ne 1 ]; then
+            echo "Expected exactly one artifact matching: $ARTIFACT_PATTERN"
+            echo "Found: ${#artifacts[@]}"
+            find target/release -type f -print
+            exit 1
+          fi
+
+          cp "${artifacts[0]}" "release-assets/$ASSET_NAME"
+
+          echo "Prepared release asset:"
+          ls -lh "release-assets/$ASSET_NAME"
+
+      # 每个平台先上传自己的构建产物
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: release-assets/${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: |
+          ls -lh release-assets/
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 5
+
+      # 只由一个 Job 创建和更新 Release，避免矩阵任务并发操作 Release
+      - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          # packager 默认输出路径在 workspace 根的 target/release/bundle/<format>/
-          files: target/release/bundle/${{ matrix.packager_format }}/*
+          files: release-assets/*
