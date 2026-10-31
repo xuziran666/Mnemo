@@ -15,15 +15,21 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            asset: mnemo-linux-x86_64
+            asset: mnemo-linux-x86_64.AppImage
+            packager_format: appimage
           - platform: ubuntu-22.04-arm
-            asset: mnemo-linux-aarch64
+            asset: mnemo-linux-aarch64.AppImage
+            packager_format: appimage
           - platform: windows-2022
-            asset: mnemo-windows-x86_64.exe
+            asset: mnemo-windows-x86_64-setup.exe
+            packager_format: nsis
           - platform: windows-11-arm
-            asset: mnemo-windows-aarch64.exe
+            asset: mnemo-windows-aarch64-setup.exe
+            packager_format: nsis
           - platform: macos-14
-            asset: mnemo-macos-aarch64
+            asset: mnemo-macos-aarch64.dmg
+            packager_format: dmg
+
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -40,22 +46,21 @@ jobs:
             libxkbcommon-dev libwayland-dev libx11-dev \
             libxcursor-dev libxrandr-dev libxi-dev \
             libgl1-mesa-dev libegl1-mesa-dev \
-            libfontconfig1-dev
+            libfontconfig1-dev \
+            libfuse2 file rpm
 
-      - name: Build
-        run: cargo build --release -p mnemo-slint
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
 
-      - name: Stage asset (unix)
-        if: "!startsWith(matrix.platform, 'windows')"
-        run: cp target/release/mnemo "${{ matrix.asset }}"
-
-      - name: Stage asset (windows)
-        if: startsWith(matrix.platform, 'windows')
-        shell: pwsh
-        run: Copy-Item target/release/mnemo.exe "${{ matrix.asset }}"
+      # 关键：切换到 mnemo-slint 目录执行打包，
+      # packager 会自动 build，并输出到 workspace 根目录的 target/release/bundle/<format>/
+      - name: Package Application
+        working-directory: ./mnemo-slint
+        run: cargo packager --release --format ${{ matrix.packager_format }}
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: ${{ matrix.asset }}
+          # packager 默认输出路径在 workspace 根的 target/release/bundle/<format>/
+          files: target/release/bundle/${{ matrix.packager_format }}/*

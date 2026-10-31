@@ -30,3 +30,26 @@ mnemo-core = { path = "../mnemo-core" }
 [build-dependencies]
 # 构建期编译 .slint 文件（版本与 slint 保持一致）
 slint-build = "~1.18"
+
+# ============================================================
+# cargo-packager 打包元数据
+# 用途：将 target/release/mnemo 封装为 .AppImage / .exe / .dmg
+# ============================================================
+[package.metadata.packager]
+# 显示给用户的产品名（安装后快捷方式、程序列表里显示的名称）
+product-name = "Mnemo"
+# 唯一标识符，建议使用反向域名；macOS 的 bundle ID / Windows 的注册表键会用这个
+identifier = "com.longanl.mnemo"
+authors = ["xuziran666"]
+description = "A local command manager built with pure Rust and Slint."
+# 应用分类（Linux .desktop 文件的 Categories 字段）
+category = "Utility"
+# 明确指定要打包的二进制名（对应 [[bin]] 的 name）
+binaries = [
+    { path = "mnemo", main = true }
+]
+before-packaging-command = "cargo build --release"
+# ---- 以下两项默认注释，等你准备好图标再取消注释 ----
+# icons = ["icons/icon.png"]                    # 通用图标（PNG，建议 512x512）
+# [package.metadata.packager.nsis]
+# installer-icon = "icons/icon.ico"             # Windows 安装器图标（ICO，多尺寸）
